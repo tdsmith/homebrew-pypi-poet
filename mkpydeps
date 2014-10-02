@@ -1,0 +1,43 @@
+#!/usr/bin/env python
+
+""" mkpydeps 0.1
+
+Invoked like "mkpydeps foo" for some package foo **which is presently
+installed in sys.path**, determines which packages foo and its dependents
+depend on, downloads them from pypi and computes their checksums, and
+spits out Homebrew resource stanzas.
+
+`pip install tl.eggdeps` first, please.
+"""
+
+import os, sys, json, urllib2
+from hashlib import sha1
+import tl.eggdeps.graph
+
+graph = tl.eggdeps.graph.Graph()
+graph.from_specifications([sys.argv[1]])
+deps = set(graph.keys()) - set([sys.argv[1]])
+
+for dep in deps:
+    f = urllib2.urlopen("http://pypi.python.org/pypi/{}/json".format(dep))
+    j = json.load(f)
+    f.close()
+    print '  resource "{}" do'.format(dep)
+    for i in j['urls']:
+        if i['packagetype'] == 'sdist':
+            url = i['url']
+            print '    url "{}"'.format(url)
+            f = urllib2.urlopen(url)
+            checksum = sha1(f.read()).hexdigest()
+            print '    sha1 "{}"'.format(checksum)
+            break
+    print '  end'
+    print
+
+print "===\n"
+print '    ENV.prepend_create_path "PYTHONPATH", "#{libexec}/lib/python2.7/site-packages"'
+print '    %w[' + ' '.join(deps) + '].each do |r|'
+print '      resource(r).stage do'
+print '        system "python", "setup.py", "install", "--prefix=#{libexec}"'
+print '      end'
+print '    end'
