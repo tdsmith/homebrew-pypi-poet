@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-""" mkpydeps 0.1
+""" mkpydeps 0.2
 
 Invoked like "mkpydeps foo" for some package foo **which is presently
 installed in sys.path**, determines which packages foo and its dependents
@@ -35,9 +35,9 @@ for dep in deps:
     print
 
 print "===\n"
-print '    ENV.prepend_create_path "PYTHONPATH", "#{libexec}/lib/python2.7/site-packages"'
+print '    ENV.prepend_create_path "PYTHONPATH", "#{libexec}/vendor/lib/python2.7/site-packages"'
 print '    %w[' + ' '.join(deps) + '].each do |r|'
 print '      resource(r).stage do'
-print '        system "python", "setup.py", "install", "--prefix=#{libexec}"'
+print '        Language::Python.setup_install "python", libexec/"vendor"'
 print '      end'
 print '    end'
