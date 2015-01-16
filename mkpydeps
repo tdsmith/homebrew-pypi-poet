@@ -35,7 +35,7 @@ for dep in deps:
     print
 
 print "===\n"
-print '    ENV.prepend_create_path "PYTHONPATH", "#{libexec}/vendor/lib/python2.7/site-packages"'
+print '    ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python2.7/site-packages"'
 print '    %w[' + ' '.join(deps) + '].each do |r|'
 print '      resource(r).stage do'
 print '        system "python", *Language::Python.setup_install_args(libexec/"vendor")'
