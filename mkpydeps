@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-""" mkpydeps 0.2
+""" homebrew-pypi-poet
 
-Invoked like "mkpydeps foo" for some package foo **which is presently
+Invoked like "poet foo" for some package foo **which is presently
 installed in sys.path**, determines which packages foo and its dependents
 depend on, downloads them from pypi and computes their checksums, and
 spits out Homebrew resource stanzas.
@@ -10,29 +10,39 @@ spits out Homebrew resource stanzas.
 `pip install tl.eggdeps jinja2 networkx` first, please.
 """
 
-import os, sys, json, urllib2
+from __future__ import print_function
+import argparse
+from collections import OrderedDict
 from hashlib import sha1
-import tl.eggdeps.graph
-import pip
-from pip.compat import stdlib_pkgs
-import networkx as nx
-from jinja2 import Template
+import json
+import os
+import sys
+import urllib2
+import warnings
 
-TEMPLATE="""
-class {{ package.name|capitalize }} < Formula
+from jinja2 import Template
+import networkx
+import pip
+import tl.eggdeps.graph
+
+version = "0.3"
+
+FORMULA_TEMPLATE = Template(
+"""class {{ package.name|capitalize }} < Formula
   homepage "{{ package.homepage }}"
   url "{{ package.url }}"
   sha1 "{{ package.checksum }}"
 
-  ... add dependencies
-  {% if has_resources %}{% for resource in resources %}
-  resource "{{ resource.name }}" do
-    url "{{ resource.url }}"
-    sha1 "{{ resource.checksum }}"
-  end
-  {% endfor %}{% endif %}
+{% if resources %}
+{%   for resource in resources %}
+{%     include ResourceTemplate %}
+
+
+{%   endfor %}
+{% endif %}
   def install
-    {% if has_resources %}ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python{{ py_version }}/site-packages"
+{% if resources %}
+    ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python{{ py_version }}/site-packages"
     %w[{{ resources|map(attribute='name')|join(' ') }}].each do |r|
       resource(r).stage do
         system "python", *Language::Python.setup_install_args(libexec/"vendor")
@@ -40,60 +50,134 @@ class {{ package.name|capitalize }} < Formula
     end
 
 {% endif %}
-    ... add custom changes
-
     ENV.prepend_create_path "PYTHONPATH", libexec/"lib/python{{ py_version }}/site-packages"
     system "python", *Language::Python.setup_install_args(libexec)
-
-    ... add custom changes
 
     bin.install Dir[libexec/"bin/*"]
     bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
   end
 end
-"""
+""", trim_blocks=True)
 
-pkg = sys.argv[1]
+RESOURCE_TEMPLATE = Template(
+"""  resource "{{ resource.name }}" do
+    url "{{ resource.url }}"
+    {{ resource.checksum_type }} "{{ resource.checksum }}"
+  end
+""")
 
-egg_graph = tl.eggdeps.graph.Graph()
-egg_graph.from_specifications(pkg)
 
-# create graph
-G = nx.DiGraph()
-stdlib_pkgs = set(stdlib_pkgs)
-keys = set(egg_graph.keys()) - stdlib_pkgs
-G.add_nodes_from(keys)
-G.add_edges_from([(k, v) for k in keys for v in
-    set(egg_graph[k].keys()) - stdlib_pkgs])
+class PackageNotInstalledWarning(UserWarning):
+    pass
 
-# add version attribute
-installed_packages = pip.get_installed_distributions()
-versions = dict((el.key,el.version) for el in installed_packages)
-for n in G.nodes():
-    G.node[n]['version'] = versions[n]
 
-# add more node info
-for n in G.nodes():
-    f = urllib2.urlopen("http://pypi.python.org/pypi/{}/{}/json".format(n,
-        G.node[n]['version']))
-    j = json.load(f)
+def research_package(name, version=None):
+    f = urllib2.urlopen("http://pypi.python.org/pypi/{}/{}/json".
+                        format(name, version or ''))
+    pkg_data = json.load(f)
     f.close()
-    G.node[n]['name'] = j['info']['name']
-    G.node[n]['homepage'] = j['info'].get('home_page', 'PUT THE PACKAGE URL')
-    for i in j['urls']:
-        if i['packagetype'] == 'sdist':
-            G.node[n]['url'] = i['url']
-            f = urllib2.urlopen(G.node[n]['url'])
-            G.node[n]['checksum'] = sha1(f.read()).hexdigest()
+    d = {}
+    d['name'] = pkg_data['info']['name']
+    d['homepage'] = pkg_data['info'].get('home_page', '')
+    for url in pkg_data['urls']:
+        if url['packagetype'] == 'sdist':
+            d['url'] = url['url']
+            f = urllib2.urlopen(url['url'])
+            d['checksum'] = sha1(f.read()).hexdigest()
+            d['checksum_type'] = 'sha1'
+            f.close()
+            break
+    return d
 
-# get the dependency resolution order
-deps = nx.algorithms.dag.topological_sort(G)
-deps.reverse()
 
-resources = map( lambda n : G.node[n], filter(lambda n :
-    G.node[n]['name'].lower() != pkg.lower(), G.nodes()))
-root = G.node[pkg]
+def make_graph(pkg):
+    egg_graph = tl.eggdeps.graph.Graph()
+    egg_graph.from_specifications(pkg)
 
-template = Template(TEMPLATE)
-has_resources = len(resources) != 0
-print template.render(package=root, has_resources=has_resources, resources=resources, py_version="2.7")
+    # create graph
+    G = networkx.DiGraph()
+    keys = egg_graph.keys()
+    G.add_nodes_from(keys)
+    G.add_edges_from([(k, v) for k in keys for v in egg_graph[k].keys()])
+
+    # add version attribute
+    installed_packages = pip.get_installed_distributions()
+    versions = {package.key: package.version for package in installed_packages}
+    for package in G.nodes():
+        try:
+            G.node[package]['version'] = versions[package]
+        except KeyError:
+            warnings.warn("{} is not installed so we cannot compute "
+                          "resources for its dependencies.".format(package),
+                          PackageNotInstalledWarning)
+            G.node[package]['version'] = None
+
+    for package in G.nodes():
+        package_data = research_package(package, G.node[package]['version'])
+        G.node[package].update(package_data)
+
+    # get the dependency resolution order
+    deps = networkx.algorithms.dag.topological_sort(G)
+    deps.reverse()
+
+    return OrderedDict([(dep, G.node[dep]) for dep in deps])
+
+
+def formula_for(package):
+    nodes = make_graph(package)
+    resources = [value for key, value in nodes.iteritems()
+                 if key.lower() != package.lower()]
+    root = nodes[package]
+    return FORMULA_TEMPLATE.render(package=root,
+                                   resources=resources,
+                                   py_version="2.7",
+                                   ResourceTemplate=RESOURCE_TEMPLATE)
+
+
+def resources_for(package):
+    nodes = make_graph(package)
+    return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
+                        for node in nodes.itervalues()])
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Generate Homebrew resource stanzas for pypi packages '
+                    'and their dependencies.')
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument(
+        '--single', '-s', metavar='package', nargs='+',
+        help='Generate a resource stanza for one or more packages, '
+             'without considering dependencies.')
+    actions.add_argument(
+        '--formula', '-f', metavar='package',
+        help='Generate a complete formula for a pypi package with its '
+             'recursive pypi dependencies as resources.')
+    actions.add_argument(
+        '--resources', '-r', metavar='package',
+        help='Generate resource stanzas for a package and its recursive '
+             'dependencies (default).')
+    parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
+    args = parser.parse_args()
+
+    if (args.formula or args.resources) and args.package:
+        print('--formula and --resources take a single argument.',
+              file=sys.stderr)
+        parser.print_usage(sys.stderr)
+        sys.exit(1)
+
+    if args.formula:
+        print(formula_for(args.formula))
+    elif args.single:
+        for i, package in enumerate(args.single):
+            data = research_package(package)
+            print(RESOURCE_TEMPLATE.render(resource=data))
+            if i != len(args.single)-1:
+                print()
+    else:
+        package = args.resources or args.package
+        print(resources_for(package))
+
+
+if __name__ == '__main__':
+    main()
