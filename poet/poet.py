@@ -25,8 +25,6 @@ import networkx
 import pip
 import tl.eggdeps.graph
 
-version = "0.3"
-
 FORMULA_TEMPLATE = Template(
 """class {{ package.name|capitalize }} < Formula
   homepage "{{ package.homepage }}"
@@ -164,7 +162,7 @@ def main():
         print('--formula and --resources take a single argument.',
               file=sys.stderr)
         parser.print_usage(sys.stderr)
-        sys.exit(1)
+        return 1
 
     if args.formula:
         print(formula_for(args.formula))
@@ -176,8 +174,12 @@ def main():
                 print()
     else:
         package = args.resources or args.package
+        if not package:
+            parser.print_usage(sys.stderr)
+            return 1
         print(resources_for(package))
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
