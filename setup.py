@@ -1,9 +1,9 @@
 from setuptools import setup
-import poet
+execfile("poet/version.py")
 
 setup(
     name='homebrew-pypi-poet',
-    version=poet.__version__,
+    version=__version__,
     url='https://github.com/tdsmith/homebrew-pypi-poet',
     license='MIT',
     author='Tim D. Smith',
