@@ -15,7 +15,6 @@ import argparse
 from collections import OrderedDict
 from hashlib import sha1
 import json
-import os
 import sys
 import urllib2
 import warnings
@@ -24,6 +23,7 @@ from jinja2 import Template
 import networkx
 import pip
 import tl.eggdeps.graph
+
 
 FORMULA_TEMPLATE = Template(
 """class {{ package.name|capitalize }} < Formula
@@ -170,7 +170,7 @@ def main():
         for i, package in enumerate(args.single):
             data = research_package(package)
             print(RESOURCE_TEMPLATE.render(resource=data))
-            if i != len(args.single)-1:
+            if i != len(args.single) - 1:
                 print()
     else:
         package = args.resources or args.package
