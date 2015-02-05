@@ -1,6 +1,4 @@
 import sys
+from .poet import main
 
-from .poet import *
-
-if __name__ == '__main__':
-    sys.exit(main())
+sys.exit(main())
