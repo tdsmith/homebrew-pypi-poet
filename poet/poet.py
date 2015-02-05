@@ -92,10 +92,12 @@ def make_graph(pkg):
     egg_graph.from_specifications(pkg)
 
     # create graph
+    ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
     G = networkx.DiGraph()
-    keys = egg_graph.keys()
+    keys = [key for key in egg_graph.keys() if key not in ignore]
     G.add_nodes_from(keys)
-    G.add_edges_from([(k, v) for k in keys for v in egg_graph[k].keys()])
+    G.add_edges_from([(k, v) for k in keys for v in egg_graph[k].keys()
+                      if v not in ignore])
 
     # add version attribute
     installed_packages = pip.get_installed_distributions()
