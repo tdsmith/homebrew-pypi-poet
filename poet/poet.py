@@ -15,7 +15,6 @@ import argparse
 from collections import OrderedDict
 from hashlib import sha1
 import json
-import os
 import sys
 import urllib2
 import warnings
