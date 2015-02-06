@@ -19,5 +19,5 @@ setup(
         'Programming Language :: Python :: 2.7'
     ],
     install_requires = ['jinja2', 'networkx', 'pip', 'tl.eggdeps'],
-    entry_points = {'console_scripts': ['poet=poet.__main__:main']}
+    entry_points = {'console_scripts': ['poet=poet.poet:main']}
 )
