@@ -47,7 +47,7 @@ FORMULA_TEMPLATE = Template(
   def install
 {% if resources %}
     ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python{{ py_version }}/site-packages"
-    %w[{{ resources|map(attribute='name')|join(' ') }}].each do |r|
+    %w[{{ resources|map(attribute='name')|map('lower')|join(' ') }}].each do |r|
       resource(r).stage do
         system "python", *Language::Python.setup_install_args(libexec/"vendor")
       end
@@ -64,7 +64,7 @@ end
 """, trim_blocks=True)
 
 RESOURCE_TEMPLATE = Template(
-"""  resource "{{ resource.name }}" do
+"""  resource "{{ resource.name | lower }}" do
     url "{{ resource.url }}"
     {{ resource.checksum_type }} "{{ resource.checksum }}"
   end
