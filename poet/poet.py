@@ -16,13 +16,16 @@ import json
 import sys
 import warnings
 import codecs
+import re
 
-from jinja2 import Template
-import networkx
 import pip
+
+from jinja2 import Environment
+import networkx
 import tl.eggdeps.graph
 
 from .version import __version__
+
 
 try:
     # Python 2.x
@@ -31,44 +34,53 @@ except ImportError:
     # Python 3.x
     from urllib.request import urlopen
 
-FORMULA_TEMPLATE = Template(
-"""class {{ package.name|capitalize }} < Formula
-  homepage "{{ package.homepage }}"
-  url "{{ package.url }}"
-  sha256 "{{ package.checksum }}"
-
-{% if resources %}
-{%   for resource in resources %}
-{%     include ResourceTemplate %}
+jinja_env = Environment(trim_blocks=True)
 
 
-{%   endfor %}
-{% endif %}
-  def install
-{% if resources %}
-    ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python{{ py_version }}/site-packages"
-    %w[{{ resources|map(attribute='name')|map('lower')|join(' ') }}].each do |r|
-      resource(r).stage do
-        system "python", *Language::Python.setup_install_args(libexec/"vendor")
+def camel_case(s):
+    return ''.join(map(lambda s: s.capitalize(), re.split("-|_", s)))
+
+
+jinja_env.filters['camelcase'] = camel_case
+
+FORMULA_TEMPLATE = jinja_env.from_string(
+    """class {{ package.name|camelcase}} < Formula
+      homepage "{{ package.homepage }}"
+      url "{{ package.url }}"
+      sha256 "{{ package.checksum }}"
+
+    {% if resources %}
+    {%   for resource in resources %}
+    {%     include ResourceTemplate %}
+
+
+    {%   endfor %}
+    {% endif %}
+      def install
+    {% if resources %}
+        ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python{{ py_version }}/site-packages"
+        %w[{{ resources|map(attribute='name')|map('lower')|join(' ') }}].each do |r|
+          resource(r).stage do
+            system "python", *Language::Python.setup_install_args(libexec/"vendor")
+          end
+        end
+
+    {% endif %}
+        ENV.prepend_create_path "PYTHONPATH", libexec/"lib/python{{ py_version }}/site-packages"
+        system "python", *Language::Python.setup_install_args(libexec)
+
+        bin.install Dir[libexec/"bin/*"]
+        bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
       end
     end
+    """)
 
-{% endif %}
-    ENV.prepend_create_path "PYTHONPATH", libexec/"lib/python{{ py_version }}/site-packages"
-    system "python", *Language::Python.setup_install_args(libexec)
-
-    bin.install Dir[libexec/"bin/*"]
-    bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
-  end
-end
-""", trim_blocks=True)
-
-RESOURCE_TEMPLATE = Template(
-"""  resource "{{ resource.name | lower }}" do
-    url "{{ resource.url }}"
-    {{ resource.checksum_type }} "{{ resource.checksum }}"
-  end
-""")
+RESOURCE_TEMPLATE = jinja_env.from_string(
+    """  resource "{{ resource.name | lower }}" do
+        url "{{ resource.url }}"
+        {{ resource.checksum_type }} "{{ resource.checksum }}"
+      end
+    """)
 
 
 class PackageNotInstalledWarning(UserWarning):
@@ -77,7 +89,7 @@ class PackageNotInstalledWarning(UserWarning):
 
 def research_package(name, version=None):
     f = urlopen("https://pypi.python.org/pypi/{}/{}/json".
-                        format(name, version or ''))
+                format(name, version or ''))
     reader = codecs.getreader("utf-8")
     pkg_data = json.load(reader(f))
     f.close()
@@ -166,7 +178,7 @@ def main():
              'dependencies (default).')
     parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
     parser.add_argument('-V', '--version', action='version',
-            version='homebrew-pypi-poet {}'.format(__version__))
+                        version='homebrew-pypi-poet {}'.format(__version__))
     args = parser.parse_args()
 
     if (args.formula or args.resources) and args.package:
@@ -181,7 +193,7 @@ def main():
         for i, package in enumerate(args.single):
             data = research_package(package)
             print(RESOURCE_TEMPLATE.render(resource=data))
-            if i != len(args.single)-1:
+            if i != len(args.single) - 1:
                 print()
     else:
         package = args.resources or args.package
