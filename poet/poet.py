@@ -13,7 +13,7 @@ spits out Homebrew resource stanzas.
 from __future__ import print_function
 import argparse
 from collections import OrderedDict
-from hashlib import sha1
+from hashlib import sha256
 import json
 import sys
 import urllib2
@@ -28,7 +28,7 @@ FORMULA_TEMPLATE = Template(
 """class {{ package.name|capitalize }} < Formula
   homepage "{{ package.homepage }}"
   url "{{ package.url }}"
-  sha1 "{{ package.checksum }}"
+  sha256 "{{ package.checksum }}"
 
 {% if resources %}
 {%   for resource in resources %}
@@ -80,8 +80,8 @@ def research_package(name, version=None):
         if url['packagetype'] == 'sdist':
             d['url'] = url['url']
             f = urllib2.urlopen(url['url'])
-            d['checksum'] = sha1(f.read()).hexdigest()
-            d['checksum_type'] = 'sha1'
+            d['checksum'] = sha256(f.read()).hexdigest()
+            d['checksum_type'] = 'sha256'
             f.close()
             break
     return d
