@@ -67,7 +67,7 @@ class PackageNotInstalledWarning(UserWarning):
 
 
 def research_package(name, version=None):
-    f = urllib2.urlopen("http://pypi.python.org/pypi/{}/{}/json".
+    f = urllib2.urlopen("https://pypi.python.org/pypi/{}/{}/json".
                         format(name, version or ''))
     pkg_data = json.load(f)
     f.close()
