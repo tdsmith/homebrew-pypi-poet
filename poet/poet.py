@@ -6,8 +6,6 @@ Invoked like "poet foo" for some package foo **which is presently
 installed in sys.path**, determines which packages foo and its dependents
 depend on, downloads them from pypi and computes their checksums, and
 spits out Homebrew resource stanzas.
-
-`pip install tl.eggdeps jinja2 networkx` first, please.
 """
 
 from __future__ import print_function
