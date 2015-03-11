@@ -7,3 +7,4 @@
 * Test by pip-installing the wheel
 * twine upload dist/*X.Y.Z*
 * Bump version to dev in poet/version.py
+* Push to github with --tags
