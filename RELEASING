@@ -1,0 +1,9 @@
+# Release workflow
+
+* Bump version to release version in poet/version.py
+* Commit and tag (git tag -a vX.Y.Z)
+* python setup.py sdist
+* python setup.py bdist_wheel
+* Test by pip-installing the wheel
+* twine upload dist/*X.Y.Z*
+* Bump version to dev in poet/version.py
