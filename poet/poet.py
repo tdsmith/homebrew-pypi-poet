@@ -14,8 +14,9 @@ from collections import OrderedDict
 from hashlib import sha256
 import json
 import sys
-import urllib2
+from six.moves.urllib.request import urlopen
 import warnings
+import codecs
 
 from jinja2 import Template
 import networkx
@@ -67,9 +68,10 @@ class PackageNotInstalledWarning(UserWarning):
 
 
 def research_package(name, version=None):
-    f = urllib2.urlopen("https://pypi.python.org/pypi/{}/{}/json".
+    f = urlopen("https://pypi.python.org/pypi/{}/{}/json".
                         format(name, version or ''))
-    pkg_data = json.load(f)
+    reader = codecs.getreader("utf-8")
+    pkg_data = json.load(reader(f))
     f.close()
     d = {}
     d['name'] = pkg_data['info']['name']
@@ -77,7 +79,7 @@ def research_package(name, version=None):
     for url in pkg_data['urls']:
         if url['packagetype'] == 'sdist':
             d['url'] = url['url']
-            f = urllib2.urlopen(url['url'])
+            f = urlopen(url['url'])
             d['checksum'] = sha256(f.read()).hexdigest()
             d['checksum_type'] = 'sha256'
             f.close()
@@ -122,7 +124,7 @@ def make_graph(pkg):
 
 def formula_for(package):
     nodes = make_graph(package)
-    resources = [value for key, value in nodes.iteritems()
+    resources = [value for key, value in nodes.items()
                  if key.lower() != package.lower()]
     root = nodes[package]
     return FORMULA_TEMPLATE.render(package=root,
@@ -134,7 +136,7 @@ def formula_for(package):
 def resources_for(package):
     nodes = make_graph(package)
     return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
-                        for node in nodes.itervalues()])
+                        for node in nodes.values()])
 
 
 def main():
