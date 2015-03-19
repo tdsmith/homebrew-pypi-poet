@@ -124,7 +124,7 @@ def make_graph(pkg):
 
 def formula_for(package):
     nodes = make_graph(package)
-    resources = [value for key, value in nodes.iteritems()
+    resources = [value for key, value in nodes.items()
                  if key.lower() != package.lower()]
     root = nodes[package]
     return FORMULA_TEMPLATE.render(package=root,
@@ -136,7 +136,7 @@ def formula_for(package):
 def resources_for(package):
     nodes = make_graph(package)
     return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
-                        for node in nodes.itervalues()])
+                        for node in nodes.values()])
 
 
 def main():
