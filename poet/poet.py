@@ -14,7 +14,7 @@ from collections import OrderedDict
 from hashlib import sha256
 import json
 import sys
-import urllib2
+from urllib.request import urlopen
 import warnings
 
 from jinja2 import Template
@@ -67,7 +67,7 @@ class PackageNotInstalledWarning(UserWarning):
 
 
 def research_package(name, version=None):
-    f = urllib2.urlopen("https://pypi.python.org/pypi/{}/{}/json".
+    f = urlopen("https://pypi.python.org/pypi/{}/{}/json".
                         format(name, version or ''))
     pkg_data = json.load(f)
     f.close()
@@ -77,7 +77,7 @@ def research_package(name, version=None):
     for url in pkg_data['urls']:
         if url['packagetype'] == 'sdist':
             d['url'] = url['url']
-            f = urllib2.urlopen(url['url'])
+            f = urlopen(url['url'])
             d['checksum'] = sha256(f.read()).hexdigest()
             d['checksum_type'] = 'sha256'
             f.close()
