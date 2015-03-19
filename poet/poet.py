@@ -14,7 +14,7 @@ from collections import OrderedDict
 from hashlib import sha256
 import json
 import sys
-from urllib.request import urlopen
+from six.moves.urllib.request import urlopen
 import warnings
 import codecs
 
