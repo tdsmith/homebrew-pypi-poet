@@ -1,5 +1,7 @@
 from setuptools import setup
-execfile("poet/version.py")
+
+filename = "poet/version.py"
+exec(compile(open(filename, "rb").read(), filename, 'exec'))
 
 setup(
     name='homebrew-pypi-poet',
@@ -17,6 +19,7 @@ setup(
         'Topic :: Software Development :: Build Tools',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 2.7'
+        'Programming Language :: Python :: 3.4'
     ],
     install_requires = ['jinja2', 'networkx', 'pip', 'tl.eggdeps'],
     entry_points = {'console_scripts': ['poet=poet:main']}
