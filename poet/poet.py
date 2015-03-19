@@ -16,6 +16,7 @@ import json
 import sys
 from urllib.request import urlopen
 import warnings
+import codecs
 
 from jinja2 import Template
 import networkx
@@ -69,7 +70,8 @@ class PackageNotInstalledWarning(UserWarning):
 def research_package(name, version=None):
     f = urlopen("https://pypi.python.org/pypi/{}/{}/json".
                         format(name, version or ''))
-    pkg_data = json.load(f)
+    reader = codecs.getreader("utf-8")
+    pkg_data = json.load(reader(f))
     f.close()
     d = {}
     d['name'] = pkg_data['info']['name']
