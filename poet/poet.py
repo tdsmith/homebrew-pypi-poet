@@ -37,50 +37,50 @@ except ImportError:
 jinja_env = Environment(trim_blocks=True)
 
 
-def camel_case(s):
-    return ''.join(map(lambda s: s.capitalize(), re.split("-|_", s)))
+def camel_case(string):
+    return ''.join(map(lambda s: s.capitalize(), re.split("-|_", string)))
 
 
 jinja_env.filters['camelcase'] = camel_case
 
 FORMULA_TEMPLATE = jinja_env.from_string(
-    """class {{ package.name|camelcase}} < Formula
-      homepage "{{ package.homepage }}"
-      url "{{ package.url }}"
-      sha256 "{{ package.checksum }}"
+"""class {{ package.name|camelcase }} < Formula
+  homepage "{{ package.homepage }}"
+  url "{{ package.url }}"
+  sha256 "{{ package.checksum }}"
 
-    {% if resources %}
-    {%   for resource in resources %}
-    {%     include ResourceTemplate %}
+{% if resources %}
+{%   for resource in resources %}
+{%     include ResourceTemplate %}
 
 
-    {%   endfor %}
-    {% endif %}
-      def install
-    {% if resources %}
-        ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python{{ py_version }}/site-packages"
-        %w[{{ resources|map(attribute='name')|map('lower')|join(' ') }}].each do |r|
-          resource(r).stage do
-            system "python", *Language::Python.setup_install_args(libexec/"vendor")
-          end
-        end
-
-    {% endif %}
-        ENV.prepend_create_path "PYTHONPATH", libexec/"lib/python{{ py_version }}/site-packages"
-        system "python", *Language::Python.setup_install_args(libexec)
-
-        bin.install Dir[libexec/"bin/*"]
-        bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
+{%   endfor %}
+{% endif %}
+  def install
+{% if resources %}
+    ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python{{ py_version }}/site-packages"
+    %w[{{ resources|map(attribute='name')|map('lower')|join(' ') }}].each do |r|
+      resource(r).stage do
+        system "python", *Language::Python.setup_install_args(libexec/"vendor")
       end
     end
-    """)
+
+{% endif %}
+    ENV.prepend_create_path "PYTHONPATH", libexec/"lib/python{{ py_version }}/site-packages"
+    system "python", *Language::Python.setup_install_args(libexec)
+
+    bin.install Dir[libexec/"bin/*"]
+    bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
+  end
+end
+""")
 
 RESOURCE_TEMPLATE = jinja_env.from_string(
-    """  resource "{{ resource.name | lower }}" do
-        url "{{ resource.url }}"
-        {{ resource.checksum_type }} "{{ resource.checksum }}"
-      end
-    """)
+"""  resource "{{ resource.name | lower }}" do
+    url "{{ resource.url }}"
+    {{ resource.checksum_type }} "{{ resource.checksum }}"
+  end
+""")
 
 
 class PackageNotInstalledWarning(UserWarning):
@@ -93,9 +93,7 @@ def research_package(name, version=None):
     reader = codecs.getreader("utf-8")
     pkg_data = json.load(reader(f))
     f.close()
-    d = {}
-    d['name'] = pkg_data['info']['name']
-    d['homepage'] = pkg_data['info'].get('home_page', '')
+    d = {'name': pkg_data['info']['name'], 'homepage': pkg_data['info'].get('home_page', '')}
     for url in pkg_data['urls']:
         if url['packagetype'] == 'sdist':
             d['url'] = url['url']
