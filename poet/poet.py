@@ -16,13 +16,16 @@ import json
 import sys
 import warnings
 import codecs
+import re
 
-from jinja2 import Template
-import networkx
 import pip
+
+from jinja2 import Environment
+import networkx
 import tl.eggdeps.graph
 
 from .version import __version__
+
 
 try:
     # Python 2.x
@@ -31,8 +34,17 @@ except ImportError:
     # Python 3.x
     from urllib.request import urlopen
 
-FORMULA_TEMPLATE = Template(
-"""class {{ package.name|capitalize }} < Formula
+jinja_env = Environment(trim_blocks=True)
+
+
+def camel_case(string):
+    return ''.join(map(lambda s: s.capitalize(), re.split("-|_", string)))
+
+
+jinja_env.filters['camelcase'] = camel_case
+
+FORMULA_TEMPLATE = jinja_env.from_string(
+"""class {{ package.name|camelcase }} < Formula
   homepage "{{ package.homepage }}"
   url "{{ package.url }}"
   sha256 "{{ package.checksum }}"
@@ -47,7 +59,7 @@ FORMULA_TEMPLATE = Template(
   def install
 {% if resources %}
     ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python{{ py_version }}/site-packages"
-    %w[{{ resources|map(attribute='name')|join(' ') }}].each do |r|
+    %w[{{ resources|map(attribute='name')|map('lower')|join(' ') }}].each do |r|
       resource(r).stage do
         system "python", *Language::Python.setup_install_args(libexec/"vendor")
       end
@@ -61,10 +73,10 @@ FORMULA_TEMPLATE = Template(
     bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
   end
 end
-""", trim_blocks=True)
+""")
 
-RESOURCE_TEMPLATE = Template(
-"""  resource "{{ resource.name }}" do
+RESOURCE_TEMPLATE = jinja_env.from_string(
+"""  resource "{{ resource.name | lower }}" do
     url "{{ resource.url }}"
     {{ resource.checksum_type }} "{{ resource.checksum }}"
   end
@@ -77,13 +89,11 @@ class PackageNotInstalledWarning(UserWarning):
 
 def research_package(name, version=None):
     f = urlopen("https://pypi.python.org/pypi/{}/{}/json".
-                        format(name, version or ''))
+                format(name, version or ''))
     reader = codecs.getreader("utf-8")
     pkg_data = json.load(reader(f))
     f.close()
-    d = {}
-    d['name'] = pkg_data['info']['name']
-    d['homepage'] = pkg_data['info'].get('home_page', '')
+    d = {'name': pkg_data['info']['name'], 'homepage': pkg_data['info'].get('home_page', '')}
     for url in pkg_data['urls']:
         if url['packagetype'] == 'sdist':
             d['url'] = url['url']
@@ -166,7 +176,7 @@ def main():
              'dependencies (default).')
     parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
     parser.add_argument('-V', '--version', action='version',
-            version='homebrew-pypi-poet {}'.format(__version__))
+                        version='homebrew-pypi-poet {}'.format(__version__))
     args = parser.parse_args()
 
     if (args.formula or args.resources) and args.package:
@@ -181,7 +191,7 @@ def main():
         for i, package in enumerate(args.single):
             data = research_package(package)
             print(RESOURCE_TEMPLATE.render(resource=data))
-            if i != len(args.single)-1:
+            if i != len(args.single) - 1:
                 print()
     else:
         package = args.resources or args.package
