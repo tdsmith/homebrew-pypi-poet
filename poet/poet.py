@@ -22,6 +22,8 @@ import networkx
 import pip
 import tl.eggdeps.graph
 
+from .version import __version__
+
 try:
     # Python 2.x
     from urllib2 import urlopen
@@ -163,6 +165,8 @@ def main():
         help='Generate resource stanzas for a package and its recursive '
              'dependencies (default).')
     parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
+    parser.add_argument('-V', '--version', action='version',
+            version='homebrew-pypi-poet {}'.format(__version__))
     args = parser.parse_args()
 
     if (args.formula or args.resources) and args.package:
