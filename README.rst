@@ -51,5 +51,5 @@ homebrew-pypi-poet is offered under the MIT license.
 Contributors
 ------------
 
-homebrew-pypi-poet is maintained by Tim D. Smith. Robson Peixoto and
-Alessio Bogon are thanked for their helpful contributions!
+homebrew-pypi-poet is maintained by Tim D. Smith. Robson Peixoto,
+Alessio Bogon, and Julien Maupetit are thanked for their helpful contributions!
