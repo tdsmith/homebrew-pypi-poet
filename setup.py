@@ -21,6 +21,6 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.4'
     ],
-    install_requires = ['jinja2', 'networkx', 'pip', 'tl.eggdeps', 'six'],
+    install_requires = ['jinja2', 'networkx', 'pip', 'tl.eggdeps'],
     entry_points = {'console_scripts': ['poet=poet:main']}
 )

@@ -14,7 +14,6 @@ from collections import OrderedDict
 from hashlib import sha256
 import json
 import sys
-from six.moves.urllib.request import urlopen
 import warnings
 import codecs
 
@@ -22,6 +21,13 @@ from jinja2 import Template
 import networkx
 import pip
 import tl.eggdeps.graph
+
+try:
+    # Python 2.x
+    from urllib2 import urlopen
+except ImportError:
+    # Python 3.x
+    from urllib.request import urlopen
 
 FORMULA_TEMPLATE = Template(
 """class {{ package.name|capitalize }} < Formula
