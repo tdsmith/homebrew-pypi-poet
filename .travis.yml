@@ -1,13 +1,23 @@
 language: python
 sudo: false
 env:
-    - TOXENV=py27
-    - TOXENV=py34
+- TOXENV=py27
+- TOXENV=py34
 install:
-    - git clone --depth=1 https://github.com/Homebrew/homebrew.git
-    - pip install tox
+- git clone --depth=1 https://github.com/Homebrew/homebrew.git
+- pip install tox
 before_script:
-    - export PATH=$PATH:$PWD/homebrew/bin
-    - umask 0022
+- export PATH=$PATH:$PWD/homebrew/bin
+- umask 0022
 script:
-    - tox
+- tox
+deploy:
+  provider: pypi
+  user: tdsmith
+  password:
+    secure: aMbgpTpEpojo1OYq8JDhg3Qgo3/c5BoKGeHwm0UJ070kn7sR3K4zwsQ1ybq9DsM6oL+Nv9vAfbyyQmHyuDf0OoXt0nEPR/vkbwURrrXONmQ5NUvLULnQTdfwvNbHY3TaQlTbrloCVhr5CECDKckd+6SHcJDfjwsSaVK0wSWNq8Y=
+  distributions: "sdist bdist_wheel"
+  on:
+    tags: true
+    repo: tdsmith/homebrew-pypi-poet
+    condition: $TOXENV = py27
