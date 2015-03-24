@@ -29,3 +29,13 @@ def test_resources():
     assert b'resource "py" do' in result
     result = poet("py.test")
     assert b'PackageNotInstalledWarning' in result
+
+def test_audit(tmpdir):
+    home = tmpdir.chdir()
+    try:
+        with open("pytest.rb", "wb") as f:
+            subprocess.check_call(["poet", "-f", "pytest"], stdout=f)
+        subprocess.check_call(["brew", "audit", "./pytest.rb"])
+    finally:
+        tmpdir.join("pytest.rb").remove(ignore_errors=True)
+        home.chdir()
