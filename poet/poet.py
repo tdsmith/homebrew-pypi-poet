@@ -32,10 +32,22 @@ except ImportError:
     from urllib.request import urlopen
 
 FORMULA_TEMPLATE = Template(
-"""class {{ package.name|capitalize }} < Formula
+"""{% macro site_packages(python, prefix='') %}
+{% if python == "python3" %}
+libexec/"{{ prefix }}lib/python#{xy}/site-packages"
+{%- else %}
+libexec/"{{ prefix }}lib/python2.7/site-packages"
+{%- endif %}{% endmacro %}
+class {{ package.name|capitalize }} < Formula
   homepage "{{ package.homepage }}"
   url "{{ package.url }}"
   sha256 "{{ package.checksum }}"
+
+{% if python == "python" %}
+  depends_on :python if MacOS.version <= :snow_leopard
+{% else %}
+  depends_on :python3
+{% endif %}
 
 {% if resources %}
 {%   for resource in resources %}
@@ -45,17 +57,20 @@ FORMULA_TEMPLATE = Template(
 {%   endfor %}
 {% endif %}
   def install
+{% if python == "python3" %}
+    xy = Language::Python.major_minor_version "python3"
+{% endif %}
 {% if resources %}
-    ENV.prepend_create_path "PYTHONPATH", libexec/"vendor/lib/python{{ py_version }}/site-packages"
+    ENV.prepend_create_path "PYTHONPATH", {{ site_packages(python, "vendor/") }}
     %w[{{ resources|map(attribute='name')|join(' ') }}].each do |r|
       resource(r).stage do
-        system "python", *Language::Python.setup_install_args(libexec/"vendor")
+        system "{{ python }}", *Language::Python.setup_install_args(libexec/"vendor")
       end
     end
 
 {% endif %}
-    ENV.prepend_create_path "PYTHONPATH", libexec/"lib/python{{ py_version }}/site-packages"
-    system "python", *Language::Python.setup_install_args(libexec)
+    ENV.prepend_create_path "PYTHONPATH", {{ site_packages(python) }}
+    system "{{ python }}", *Language::Python.setup_install_args(libexec)
 
     bin.install Dir[libexec/"bin/*"]
     bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
@@ -69,6 +84,7 @@ RESOURCE_TEMPLATE = Template(
     {{ resource.checksum_type }} "{{ resource.checksum }}"
   end
 """)
+
 
 
 class PackageNotInstalledWarning(UserWarning):
@@ -135,9 +151,10 @@ def formula_for(package):
     resources = [value for key, value in nodes.items()
                  if key.lower() != package.lower()]
     root = nodes[package]
+    python = "python" if sys.version_info.major == 2 else "python3"
     return FORMULA_TEMPLATE.render(package=root,
                                    resources=resources,
-                                   py_version="2.7",
+                                   python=python,
                                    ResourceTemplate=RESOURCE_TEMPLATE)
 
 
