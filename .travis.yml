@@ -1,9 +1,10 @@
 language: python
+sudo: false
 env:
     - TOXENV=py27
     - TOXENV=py34
 install:
-    - git clone https://github.com/Homebrew/homebrew.git
+    - git clone --depth=1 https://github.com/Homebrew/homebrew.git
     - pip install tox
 before_script:
     - export PATH=$PATH:$PWD/homebrew/bin
