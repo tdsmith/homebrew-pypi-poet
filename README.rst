@@ -1,6 +1,8 @@
 homebrew-pypi-poet
 ==================
 
+|Build Status| |Code Health| |PyPI page| |MIT license|
+
 Invoked like ``poet foo`` for some package foo **which is presently
 installed in sys.path**, determines which packages foo and its
 dependents depend on, downloads them from pypi and computes their
@@ -53,3 +55,12 @@ Contributors
 
 homebrew-pypi-poet is maintained by Tim D. Smith. Robson Peixoto,
 Alessio Bogon, and Julien Maupetit are thanked for their helpful contributions!
+
+.. |Build Status| image:: https://travis-ci.org/tdsmith/homebrew-pypi-poet.svg?branch=master
+   :target: https://travis-ci.org/tdsmith/homebrew-pypi-poet
+.. |Code Health| image:: https://landscape.io/github/tdsmith/homebrew-pypi-poet/master/landscape.svg?style=flat
+   :target: https://landscape.io/github/tdsmith/homebrew-pypi-poet/master
+.. |PyPI page| image:: https://img.shields.io/pypi/dm/homebrew-pypi-poet.svg
+   :target: https://pypi.python.org/pypi/homebrew-pypi-poet
+.. |MIT license| image:: https://img.shields.io/pypi/l/homebrew-pypi-poet.svg
+   :target: https://github.com/tdsmith/homebrew-pypi-poet/blob/master/LICENSE
