@@ -1,7 +1,8 @@
 from setuptools import setup
 
 versionfile = 'poet/version.py'
-exec(compile(open(versionfile, 'rb').read(), versionfile, 'exec'))
+with open(versionfile, 'rb') as f:
+    exec(compile(f.read(), versionfile, 'exec'))
 
 setup(
     name='homebrew-pypi-poet',
