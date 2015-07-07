@@ -18,7 +18,6 @@ import warnings
 import codecs
 
 from jinja2 import Template
-import networkx
 import pip
 import tl.eggdeps.graph
 
@@ -114,36 +113,25 @@ def research_package(name, version=None):
 def make_graph(pkg):
     egg_graph = tl.eggdeps.graph.Graph()
     egg_graph.from_specifications(pkg)
-
-    # create graph
     ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
-    G = networkx.DiGraph()
-    keys = [key for key in egg_graph.keys() if key not in ignore]
-    G.add_nodes_from(keys)
-    G.add_edges_from([(k, v) for k in keys for v in egg_graph[k].keys()
-                      if v not in ignore])
 
-    # add version attribute
+    dependencies = {key: {} for key in egg_graph.keys() if key not in ignore}
     installed_packages = pip.get_installed_distributions()
     versions = {package.key: package.version for package in installed_packages}
-    for package in G.nodes():
+    for package in dependencies:
         try:
-            G.node[package]['version'] = versions[package]
+            dependencies[package]['version'] = versions[package]
         except KeyError:
             warnings.warn("{} is not installed so we cannot compute "
                           "resources for its dependencies.".format(package),
                           PackageNotInstalledWarning)
-            G.node[package]['version'] = None
+            dependencies[package]['version'] = None
 
-    for package in G.nodes():
-        package_data = research_package(package, G.node[package]['version'])
-        G.node[package].update(package_data)
+    for package in dependencies:
+        package_data = research_package(package, dependencies[package]['version'])
+        dependencies[package].update(package_data)
 
-    # get the dependency resolution order
-    deps = networkx.algorithms.dag.topological_sort(G)
-    deps.reverse()
-
-    return OrderedDict([(dep, G.node[dep]) for dep in deps])
+    return OrderedDict([(package, dependencies[package]) for package in sorted(dependencies.keys())])
 
 
 def formula_for(package):
