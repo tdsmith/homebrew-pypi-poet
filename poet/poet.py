@@ -138,7 +138,14 @@ def formula_for(package):
     nodes = make_graph(package)
     resources = [value for key, value in nodes.items()
                  if key.lower() != package.lower()]
-    root = nodes[package]
+
+    if package in nodes:
+        root = nodes[package]
+    elif package.lower() in nodes:
+        root = nodes[package.lower()]
+    else:
+        raise "Could not find package {} in nodes {}".format(package, nodes.keys())
+
     python = "python" if sys.version_info.major == 2 else "python3"
     return FORMULA_TEMPLATE.render(package=root,
                                    resources=resources,

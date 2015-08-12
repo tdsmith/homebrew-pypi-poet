@@ -24,6 +24,9 @@ def test_formula():
     else:
         assert b'depends_on :python3' in result
 
+def test_case_sensitivity():
+    result = poet("-f", "FoBiS.py")
+
 def test_resources():
     result = poet("pytest")
     assert b'resource "py" do' in result
