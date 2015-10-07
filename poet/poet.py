@@ -18,7 +18,7 @@ import warnings
 import codecs
 
 from jinja2 import Template
-import pip
+import pkg_resources
 import tl.eggdeps.graph
 
 from .version import __version__
@@ -116,7 +116,7 @@ def make_graph(pkg):
     ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
 
     dependencies = {key: {} for key in egg_graph.keys() if key not in ignore}
-    installed_packages = pip.get_installed_distributions()
+    installed_packages = pkg_resources.working_set
     versions = {package.key: package.version for package in installed_packages}
     for package in dependencies:
         try:
