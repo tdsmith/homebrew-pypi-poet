@@ -54,7 +54,8 @@ Contributors
 ------------
 
 homebrew-pypi-poet is maintained by Tim D. Smith. Robson Peixoto,
-Alessio Bogon, and Julien Maupetit are thanked for their helpful contributions!
+Alessio Bogon, Julien Maupetit and Alexis Benoist 
+are thanked for their helpful contributions!
 
 .. |Build Status| image:: https://travis-ci.org/tdsmith/homebrew-pypi-poet.svg?branch=master
    :target: https://travis-ci.org/tdsmith/homebrew-pypi-poet
