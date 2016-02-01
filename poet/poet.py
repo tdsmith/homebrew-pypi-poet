@@ -26,9 +26,11 @@ from .version import __version__
 try:
     # Python 2.x
     from urllib2 import urlopen
+    from urllib2 import HTTPError
 except ImportError:
     # Python 3.x
     from urllib.request import urlopen
+    from urllib.error import HTTPError
 
 FORMULA_TEMPLATE = Template(
 """{% macro site_packages(python, prefix='') %}
@@ -91,11 +93,18 @@ class PackageNotInstalledWarning(UserWarning):
 
 
 def research_package(name, version=None):
-    f = urlopen("https://pypi.python.org/pypi/{}/{}/json".
-                        format(name, version or ''))
-    reader = codecs.getreader("utf-8")
-    pkg_data = json.load(reader(f))
-    f.close()
+    try:
+        f = urlopen("https://pypi.python.org/pypi/{}/{}/json".
+                            format(name, version or ''))
+        reader = codecs.getreader("utf-8")
+        pkg_data = json.load(reader(f))
+        f.close()
+    except HTTPError:
+        if version is None:
+            raise
+        warnings.warn("{} version {} not available, trying latest.".format(name, version))
+        return research_package(name)
+
     d = {}
     d['name'] = pkg_data['info']['name']
     d['homepage'] = pkg_data['info'].get('home_page', '')
