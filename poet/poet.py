@@ -85,28 +85,46 @@ RESOURCE_TEMPLATE = Template(
 """)
 
 
-
 class PackageNotInstalledWarning(UserWarning):
     pass
 
 
+class PackageVersionNotFoundWarning(UserWarning):
+    pass
+
+
 def research_package(name, version=None):
-    f = urlopen("https://pypi.python.org/pypi/{}/{}/json".
-                        format(name, version or ''))
+    f = urlopen("https://pypi.python.org/pypi/{}/json".format(name))
     reader = codecs.getreader("utf-8")
     pkg_data = json.load(reader(f))
     f.close()
     d = {}
     d['name'] = pkg_data['info']['name']
     d['homepage'] = pkg_data['info'].get('home_page', '')
-    for url in pkg_data['urls']:
-        if url['packagetype'] == 'sdist':
-            d['url'] = url['url']
-            f = urlopen(url['url'])
-            d['checksum'] = sha256(f.read()).hexdigest()
-            d['checksum_type'] = 'sha256'
-            f.close()
-            break
+    artefact = None
+    if version:
+        for pypi_version in pkg_data['releases']:
+            if pkg_resources.safe_version(pypi_version) == version:
+                for version_artefact in pkg_data['releases'][pypi_version]:
+                    if version_artefact['packagetype'] == 'sdist':
+                        artefact = version_artefact
+                        break
+        if artefact is None:
+            warnings.warn("Could not find an exact version match for "
+                          "{} version {}; using newest instead".
+                          format(name, version), PackageVersionNotFoundWarning)
+
+    if artefact is None:  # no version given or exact match not found
+        for url in pkg_data['urls']:
+            if url['packagetype'] == 'sdist':
+                artefact = url
+                break
+
+    d['url'] = artefact['url']
+    f = urlopen(artefact['url'])
+    d['checksum'] = sha256(f.read()).hexdigest()
+    d['checksum_type'] = 'sha256'
+    f.close()
     return d
 
 
