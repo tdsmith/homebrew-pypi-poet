@@ -25,10 +25,12 @@ from .version import __version__
 
 try:
     # Python 2.x
-    from urllib2 import urlopen
+    from urllib2 import urlopen, HTTPError
 except ImportError:
     # Python 3.x
     from urllib.request import urlopen
+    from urllib.error import HTTPError
+
 
 FORMULA_TEMPLATE = Template(
 """{% macro site_packages(python, prefix='') %}
@@ -78,12 +80,14 @@ end
 """, trim_blocks=True)
 
 RESOURCE_TEMPLATE = Template(
-"""  resource "{{ resource.name }}" do
+"""{% if resource.url %}  resource "{{ resource.name }}" do
     url "{{ resource.url }}"
     {{ resource.checksum_type }} "{{ resource.checksum }}"
-  end
+  end{% else %}  # {{ resource.name }} not found, ignoring
+{% endif %}
 """)
 
+# print("  # Couldn't find {} in the package index, ignoring!".format(name))
 
 class PackageNotInstalledWarning(UserWarning):
     pass
@@ -94,39 +98,41 @@ class PackageVersionNotFoundWarning(UserWarning):
 
 
 def research_package(name, version=None):
-    f = urlopen("https://pypi.python.org/pypi/{}/json".format(name))
-    reader = codecs.getreader("utf-8")
-    pkg_data = json.load(reader(f))
-    f.close()
-    d = {}
-    d['name'] = pkg_data['info']['name']
-    d['homepage'] = pkg_data['info'].get('home_page', '')
-    artefact = None
-    if version:
-        for pypi_version in pkg_data['releases']:
-            if pkg_resources.safe_version(pypi_version) == version:
-                for version_artefact in pkg_data['releases'][pypi_version]:
-                    if version_artefact['packagetype'] == 'sdist':
-                        artefact = version_artefact
-                        break
-        if artefact is None:
-            warnings.warn("Could not find an exact version match for "
-                          "{} version {}; using newest instead".
-                          format(name, version), PackageVersionNotFoundWarning)
+    try:
+        f = urlopen("https://pypi.python.org/pypi/{}/json".format(name))
+        reader = codecs.getreader("utf-8")
+        pkg_data = json.load(reader(f))
+        f.close()
+        d = {}
+        d['name'] = pkg_data['info']['name']
+        d['homepage'] = pkg_data['info'].get('home_page', '')
+        artefact = None
+        if version:
+            for pypi_version in pkg_data['releases']:
+                if pkg_resources.safe_version(pypi_version) == version:
+                    for version_artefact in pkg_data['releases'][pypi_version]:
+                        if version_artefact['packagetype'] == 'sdist':
+                            artefact = version_artefact
+                            break
+            if artefact is None:
+                warnings.warn("Could not find an exact version match for "
+                              "{} version {}; using newest instead".
+                              format(name, version), PackageVersionNotFoundWarning)
 
-    if artefact is None:  # no version given or exact match not found
-        for url in pkg_data['urls']:
-            if url['packagetype'] == 'sdist':
-                artefact = url
-                break
+        if artefact is None:  # no version given or exact match not found
+            for url in pkg_data['urls']:
+                if url['packagetype'] == 'sdist':
+                    artefact = url
+                    break
 
-    d['url'] = artefact['url']
-    f = urlopen(artefact['url'])
-    d['checksum'] = sha256(f.read()).hexdigest()
-    d['checksum_type'] = 'sha256'
-    f.close()
-    return d
-
+        d['url'] = artefact['url']
+        f = urlopen(artefact['url'])
+        d['checksum'] = sha256(f.read()).hexdigest()
+        d['checksum_type'] = 'sha256'
+        f.close()
+        return d
+    except HTTPError:
+        return {'name': name}
 
 def make_graph(pkg):
     egg_graph = tl.eggdeps.graph.Graph()
