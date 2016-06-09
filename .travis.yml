@@ -1,5 +1,7 @@
 language: python
 sudo: false
+branches:
+    only: master
 matrix:
     include:
         - env: TOXENV=py27
