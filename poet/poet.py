@@ -100,7 +100,7 @@ class PackageVersionNotFoundWarning(UserWarning):
 
 
 def research_package(name, version=None):
-    f = urlopen("https://pypi.python.org/pypi/{}/json".format(name))
+    f = urlopen("https://pypi.io/pypi/{}/json".format(name))
     reader = codecs.getreader("utf-8")
     pkg_data = json.load(reader(f))
     f.close()
@@ -127,8 +127,14 @@ def research_package(name, version=None):
                 break
 
     d['url'] = artefact['url']
-    f = urlopen(artefact['url'])
-    d['checksum'] = sha256(f.read()).hexdigest()
+    if 'digests' in artefact and 'sha256' in artefact['digests']:
+        logging.debug("Using provided checksum for {}".format(name))
+        d['checksum'] = artefact['digests']['sha256']
+    else:
+        logging.debug("Fetching sdist to compute checksum for {}".format(name))
+        f = urlopen(artefact['url'])
+        d['checksum'] = sha256(f.read()).hexdigest()
+        logging.debug("Done fetching {}".format(name))
     d['checksum_type'] = 'sha256'
     f.close()
     return d
