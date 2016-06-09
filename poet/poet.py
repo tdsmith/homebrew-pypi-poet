@@ -14,6 +14,8 @@ import codecs
 from collections import OrderedDict
 from hashlib import sha256
 import json
+import logging
+import os
 import sys
 from textwrap import dedent
 import warnings
@@ -30,6 +32,9 @@ try:
 except ImportError:
     # Python 3.x
     from urllib.request import urlopen
+
+# Show warnings and greater by default
+logging.basicConfig(level=int(os.environ.get("POET_DEBUG", 30)))
 
 FORMULA_TEMPLATE = Template(dedent("""\
     {% macro site_packages(python, prefix='') %}
