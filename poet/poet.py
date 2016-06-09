@@ -128,13 +128,13 @@ def research_package(name, version=None):
 
     d['url'] = artefact['url']
     if 'digests' in artefact and 'sha256' in artefact['digests']:
-        logging.debug("Using provided checksum for {}".format(name))
+        logging.debug("Using provided checksum for %s", name)
         d['checksum'] = artefact['digests']['sha256']
     else:
-        logging.debug("Fetching sdist to compute checksum for {}".format(name))
+        logging.debug("Fetching sdist to compute checksum for %s", name)
         f = urlopen(artefact['url'])
         d['checksum'] = sha256(f.read()).hexdigest()
-        logging.debug("Done fetching {}".format(name))
+        logging.debug("Done fetching %s", name)
     d['checksum_type'] = 'sha256'
     f.close()
     return d
