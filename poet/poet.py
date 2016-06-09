@@ -10,12 +10,13 @@ spits out Homebrew resource stanzas.
 
 from __future__ import print_function
 import argparse
+import codecs
 from collections import OrderedDict
 from hashlib import sha256
 import json
 import sys
+from textwrap import dedent
 import warnings
-import codecs
 
 from jinja2 import Template
 import pkg_resources
@@ -30,59 +31,59 @@ except ImportError:
     # Python 3.x
     from urllib.request import urlopen
 
-FORMULA_TEMPLATE = Template(
-"""{% macro site_packages(python, prefix='') %}
-{% if python == "python3" %}
-libexec/"{{ prefix }}lib/python#{xy}/site-packages"
-{%- else %}
-libexec/"{{ prefix }}lib/python2.7/site-packages"
-{%- endif %}{% endmacro %}
-class {{ package.name|capitalize }} < Formula
-  homepage "{{ package.homepage }}"
-  url "{{ package.url }}"
-  sha256 "{{ package.checksum }}"
+FORMULA_TEMPLATE = Template(dedent("""\
+    {% macro site_packages(python, prefix='') %}
+    {% if python == "python3" %}
+    libexec/"{{ prefix }}lib/python#{xy}/site-packages"
+    {%- else %}
+    libexec/"{{ prefix }}lib/python2.7/site-packages"
+    {%- endif %}{% endmacro %}
+    class {{ package.name|capitalize }} < Formula
+      homepage "{{ package.homepage }}"
+      url "{{ package.url }}"
+      sha256 "{{ package.checksum }}"
 
-{% if python == "python" %}
-  depends_on :python if MacOS.version <= :snow_leopard
-{% else %}
-  depends_on :python3
-{% endif %}
+    {% if python == "python" %}
+      depends_on :python if MacOS.version <= :snow_leopard
+    {% else %}
+      depends_on :python3
+    {% endif %}
 
-{% if resources %}
-{%   for resource in resources %}
-{%     include ResourceTemplate %}
+    {% if resources %}
+    {%   for resource in resources %}
+    {%     include ResourceTemplate %}
 
 
-{%   endfor %}
-{% endif %}
-  def install
-{% if python == "python3" %}
-    xy = Language::Python.major_minor_version "python3"
-{% endif %}
-{% if resources %}
-    ENV.prepend_create_path "PYTHONPATH", {{ site_packages(python, "vendor/") }}
-    %w[{{ resources|map(attribute='name')|join(' ') }}].each do |r|
-      resource(r).stage do
-        system "{{ python }}", *Language::Python.setup_install_args(libexec/"vendor")
+    {%   endfor %}
+    {% endif %}
+      def install
+    {% if python == "python3" %}
+        xy = Language::Python.major_minor_version "python3"
+    {% endif %}
+    {% if resources %}
+        ENV.prepend_create_path "PYTHONPATH", {{ site_packages(python, "vendor/") }}
+        %w[{{ resources|map(attribute='name')|join(' ') }}].each do |r|
+          resource(r).stage do
+            system "{{ python }}", *Language::Python.setup_install_args(libexec/"vendor")
+          end
+        end
+
+    {% endif %}
+        ENV.prepend_create_path "PYTHONPATH", {{ site_packages(python) }}
+        system "{{ python }}", *Language::Python.setup_install_args(libexec)
+
+        bin.install Dir[libexec/"bin/*"]
+        bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
       end
     end
+    """), trim_blocks=True)
 
-{% endif %}
-    ENV.prepend_create_path "PYTHONPATH", {{ site_packages(python) }}
-    system "{{ python }}", *Language::Python.setup_install_args(libexec)
-
-    bin.install Dir[libexec/"bin/*"]
-    bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
-  end
-end
-""", trim_blocks=True)
-
-RESOURCE_TEMPLATE = Template(
-"""  resource "{{ resource.name }}" do
-    url "{{ resource.url }}"
-    {{ resource.checksum_type }} "{{ resource.checksum }}"
-  end
-""")
+RESOURCE_TEMPLATE = Template(dedent("""\
+    resource "{{ resource.name }}" do
+         url "{{ resource.url }}"
+         {{ resource.checksum_type }} "{{ resource.checksum }}"
+    end
+    """))
 
 
 class PackageNotInstalledWarning(UserWarning):
@@ -149,7 +150,9 @@ def make_graph(pkg):
         package_data = research_package(package, dependencies[package]['version'])
         dependencies[package].update(package_data)
 
-    return OrderedDict([(package, dependencies[package]) for package in sorted(dependencies.keys())])
+    return OrderedDict(
+        [(package, dependencies[package]) for package in sorted(dependencies.keys())]
+    )
 
 
 def formula_for(package):
@@ -195,8 +198,9 @@ def main():
         help='Generate resource stanzas for a package and its recursive '
              'dependencies (default).')
     parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
-    parser.add_argument('-V', '--version', action='version',
-            version='homebrew-pypi-poet {}'.format(__version__))
+    parser.add_argument(
+        '-V', '--version', action='version',
+        version='homebrew-pypi-poet {}'.format(__version__))
     args = parser.parse_args()
 
     if (args.formula or args.resources) and args.package:
