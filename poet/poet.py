@@ -12,6 +12,7 @@ from __future__ import print_function
 import argparse
 import codecs
 from collections import OrderedDict
+from contextlib import closing
 from hashlib import sha256
 import json
 import logging
@@ -132,8 +133,8 @@ def research_package(name, version=None):
         d['checksum'] = artefact['digests']['sha256']
     else:
         logging.debug("Fetching sdist to compute checksum for %s", name)
-        f = urlopen(artefact['url'])
-        d['checksum'] = sha256(f.read()).hexdigest()
+        with closing(urlopen(artefact['url'])) as f:
+            d['checksum'] = sha256(f.read()).hexdigest()
         logging.debug("Done fetching %s", name)
     d['checksum_type'] = 'sha256'
     f.close()
