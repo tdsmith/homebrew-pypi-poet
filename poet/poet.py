@@ -89,12 +89,12 @@ FORMULA_TEMPLATE = Template(dedent("""\
     end
     """), trim_blocks=True)
 
-RESOURCE_TEMPLATE = Template(dedent("""\
-    resource "{{ resource.name }}" do
-         url "{{ resource.url }}"
-         {{ resource.checksum_type }} "{{ resource.checksum }}"
-    end
-    """))
+RESOURCE_TEMPLATE = Template("""\
+  resource "{{ resource.name }}" do
+    url "{{ resource.url }}"
+    {{ resource.checksum_type }} "{{ resource.checksum }}"
+  end
+""")
 
 
 class PackageNotInstalledWarning(UserWarning):
