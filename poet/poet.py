@@ -45,6 +45,7 @@ FORMULA_TEMPLATE = Template(dedent("""\
     libexec/"{{ prefix }}lib/python2.7/site-packages"
     {%- endif %}{% endmacro %}
     class {{ package.name|capitalize }} < Formula
+      desc "Shiny new formula"
       homepage "{{ package.homepage }}"
       url "{{ package.url }}"
       sha256 "{{ package.checksum }}"
@@ -80,6 +81,10 @@ FORMULA_TEMPLATE = Template(dedent("""\
 
         bin.install Dir[libexec/"bin/*"]
         bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
+      end
+
+      test do
+        false
       end
     end
     """), trim_blocks=True)

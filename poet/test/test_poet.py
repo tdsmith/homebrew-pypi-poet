@@ -51,7 +51,7 @@ def test_audit(tmpdir):
     try:
         with open("pytest.rb", "wb") as f:
             subprocess.check_call(["poet", "-f", "pytest"], stdout=f)
-        subprocess.check_call(["brew", "audit", "./pytest.rb"])
+        subprocess.check_call(["brew", "audit", "--strict", "./pytest.rb"])
     finally:
         tmpdir.join("pytest.rb").remove(ignore_errors=True)
         home.chdir()
