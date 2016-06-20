@@ -29,7 +29,7 @@ Usage is like:
 ::
 
     usage: poet [-h] [--single package [package ...] | --formula package |
-                      --resources package]
+                --resources package] [-V] [--exclude [package [package ...]]]
 
     Generate Homebrew resource stanzas for pypi packages and their dependencies.
 
@@ -44,6 +44,10 @@ Usage is like:
       --resources package, -r package
                             Generate resource stanzas for a package and its
                             recursive dependencies (default).
+      -V, --version         show program's version number and exit
+      --exclude [package [package ...]], -e [package [package ...]]
+                            Exclude one or more packages but not its recursive
+                            dependencies.
 
 License
 -------
