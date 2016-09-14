@@ -38,13 +38,9 @@ except ImportError:
 logging.basicConfig(level=int(os.environ.get("POET_DEBUG", 30)))
 
 FORMULA_TEMPLATE = Template(dedent("""\
-    {% macro site_packages(python, prefix='') %}
-    {% if python == "python3" %}
-    libexec/"{{ prefix }}lib/python#{xy}/site-packages"
-    {%- else %}
-    libexec/"{{ prefix }}lib/python2.7/site-packages"
-    {%- endif %}{% endmacro %}
     class {{ package.name|capitalize }} < Formula
+      include Language::Python::Virtualenv
+
       desc "Shiny new formula"
       homepage "{{ package.homepage }}"
       url "{{ package.url }}"
@@ -65,22 +61,9 @@ FORMULA_TEMPLATE = Template(dedent("""\
     {% endif %}
       def install
     {% if python == "python3" %}
-        xy = Language::Python.major_minor_version "python3"
+        virtualenv_create(libexec, "python3")
     {% endif %}
-    {% if resources %}
-        ENV.prepend_create_path "PYTHONPATH", {{ site_packages(python, "vendor/") }}
-        %w[{{ resources|map(attribute='name')|join(' ') }}].each do |r|
-          resource(r).stage do
-            system "{{ python }}", *Language::Python.setup_install_args(libexec/"vendor")
-          end
-        end
-
-    {% endif %}
-        ENV.prepend_create_path "PYTHONPATH", {{ site_packages(python) }}
-        system "{{ python }}", *Language::Python.setup_install_args(libexec)
-
-        bin.install Dir[libexec/"bin/*"]
-        bin.env_script_all_files(libexec/"bin", :PYTHONPATH => ENV["PYTHONPATH"])
+        virtualenv_install_with_resources
       end
 
       test do
