@@ -12,6 +12,7 @@ matrix:
           python: "3.5"
 install:
 - git clone --depth=1 https://github.com/Homebrew/brew.git
+- sed -i"" -e 's/self.class.ensure_installed!/true/' brew/Library/Homebrew/tap.rb
 - pip install tox
 before_script:
 - export PATH=$PATH:$PWD/brew/bin
