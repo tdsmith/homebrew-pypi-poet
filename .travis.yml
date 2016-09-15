@@ -1,23 +1,24 @@
-language: python
-sudo: false
+os: osx
+osx_image: xcode7.3
+language: generic
 branches:
     only:
     - master
     - /^v\d.*/
-matrix:
-    include:
-        - env: TOXENV=py27
-          python: "2.7"
-        - env: TOXENV=py35
-          python: "3.5"
+env:
+- TOXENV=py2 PYTHON=python
+- TOXENV=py3 PYTHON=python3
+
+before_install:
+- brew update
 install:
-- git clone --depth=1 https://github.com/Linuxbrew/linuxbrew.git
-- pip install tox
+- brew install $PYTHON
+- $PYTHON -m pip install tox
 before_script:
-- export PATH=$PATH:$PWD/linuxbrew/bin
 - umask 0022
 script:
 - tox
+
 deploy:
   provider: pypi
   user: tdsmith
@@ -27,4 +28,4 @@ deploy:
   on:
     tags: true
     repo: tdsmith/homebrew-pypi-poet
-    condition: $TOXENV = py27
+    condition: $TOXENV = py2
