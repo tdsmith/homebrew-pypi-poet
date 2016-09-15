@@ -6,7 +6,7 @@ with open(versionfile, 'rb') as f:
 
 setup(
     name='homebrew-pypi-poet',
-    version=__version__,
+    version=__version__,  # noqa
     url='https://github.com/tdsmith/homebrew-pypi-poet',
     license='MIT',
     author='Tim D. Smith',
@@ -22,9 +22,9 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.4'
     ],
-    install_requires = ['jinja2', 'setuptools', 'tl.eggdeps'],
-    entry_points = {'console_scripts': [
+    install_requires=['jinja2', 'setuptools', 'tl.eggdeps'],
+    entry_points={'console_scripts': [
         'poet=poet:main',
-        'poet_lint=poet.lint:main'
+        'poet_lint=poet.lint:main',
     ]}
 )
