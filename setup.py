@@ -23,5 +23,8 @@ setup(
         'Programming Language :: Python :: 3.4'
     ],
     install_requires = ['jinja2', 'setuptools', 'tl.eggdeps'],
-    entry_points = {'console_scripts': ['poet=poet:main']}
+    entry_points = {'console_scripts': [
+        'poet=poet:main',
+        'poet_lint=poet.lint:main'
+    ]}
 )
