@@ -55,3 +55,14 @@ def test_audit(tmpdir):
     finally:
         tmpdir.join("pytest.rb").remove(ignore_errors=True)
         home.chdir()
+
+
+def test_lint(tmpdir):
+    home = tmpdir.chdir()
+    try:
+        with open("pytest.rb", "wb") as f:
+            subprocess.check_call(["poet", "-f", "pytest"], stdout=f)
+        subprocess.check_call(["poet_lint", "pytest.rb"])
+    finally:
+        tmpdir.join("pytest.rb").remove(ignore_errors=True)
+        home.chdir()
