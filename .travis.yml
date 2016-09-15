@@ -7,6 +7,7 @@ branches:
     - /^v\d.*/
 env:
 - TOXENV=py2 PYTHON=python
+- TOXENV=py2-flake8 PYTHON=python
 - TOXENV=py3 PYTHON=python3
 
 before_install:
