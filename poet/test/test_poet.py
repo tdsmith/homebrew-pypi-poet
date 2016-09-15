@@ -1,5 +1,6 @@
 # Integration tests for poet
 
+import os
 import subprocess
 import sys
 
@@ -51,6 +52,11 @@ def test_audit(tmpdir):
     try:
         with open("pytest.rb", "wb") as f:
             subprocess.check_call(["poet", "-f", "pytest"], stdout=f)
+        if sys.platform != "darwin":
+            subprocess.check_call(
+                ["sed", "-i", "-e", "s/ if MacOS.version <= :snow_leopard//",
+                 "pytest.rb"]
+            )
         subprocess.check_call(["brew", "audit", "--strict", "./pytest.rb"])
     finally:
         tmpdir.join("pytest.rb").remove(ignore_errors=True)
