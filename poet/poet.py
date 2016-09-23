@@ -23,7 +23,6 @@ import warnings
 
 from jinja2 import Template
 import pkg_resources
-import tl.eggdeps.graph
 
 from .version import __version__
 
@@ -88,6 +87,27 @@ class PackageVersionNotFoundWarning(UserWarning):
     pass
 
 
+def recursive_dependencies(package):
+    discovered = {package}
+    visited = set()
+
+    def walk(package):
+        if package in visited:
+            return
+        visited.add(package)
+        extras = ("security",) if package == "requests" else ()
+        try:
+            reqs = pkg_resources.get_distribution(package).requires(extras)
+        except pkg_resources.DistributionNotFound:
+            return
+        discovered.update(req.project_name.lower() for req in reqs)
+        for req in reqs:
+            walk(req)
+
+    walk(package)
+    return sorted(discovered)
+
+
 def research_package(name, version=None):
     f = urlopen("https://pypi.io/pypi/{}/json".format(name))
     reader = codecs.getreader("utf-8")
@@ -130,11 +150,10 @@ def research_package(name, version=None):
 
 
 def make_graph(pkg):
-    egg_graph = tl.eggdeps.graph.Graph()
-    egg_graph.from_specifications(pkg)
     ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
+    pkg_deps = recursive_dependencies(pkg)
 
-    dependencies = {key: {} for key in egg_graph.keys() if key not in ignore}
+    dependencies = {key: {} for key in pkg_deps if key not in ignore}
     installed_packages = pkg_resources.working_set
     versions = {package.key: package.version for package in installed_packages}
     for package in dependencies:
