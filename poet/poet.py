@@ -45,11 +45,7 @@ FORMULA_TEMPLATE = Template(dedent("""\
       url "{{ package.url }}"
       sha256 "{{ package.checksum }}"
 
-    {% if python == "python" %}
-      depends_on :python if MacOS.version <= :snow_leopard
-    {% else %}
-      depends_on :python3
-    {% endif %}
+      depends_on :{{ python }}
 
     {% if resources %}
     {%   for resource in resources %}
