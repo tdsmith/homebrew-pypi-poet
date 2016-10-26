@@ -24,7 +24,7 @@ def test_formula():
     result = poet("-f", "pytest")
     assert b'resource "py" do' in result
     if sys.version_info.major == 2:
-        assert b'depends_on :python if' in result
+        assert b'depends_on :python' in result
     else:
         assert b'depends_on :python3' in result
 
