@@ -74,6 +74,9 @@ RESOURCE_TEMPLATE = Template("""\
   end
 """)
 
+class PackageNotFoundWarning(UserWarning):
+    pass
+
 
 class PackageNotInstalledWarning(UserWarning):
     pass
@@ -162,8 +165,14 @@ def make_graph(pkg):
             dependencies[package]['version'] = None
 
     for package in dependencies:
-        package_data = research_package(package, dependencies[package]['version'])
-        dependencies[package].update(package_data)
+        try:
+            package_data = research_package(package, dependencies[package]['version'])
+            dependencies[package].update(package_data)
+        except:
+            warnings.warn("{} was not found on the PyPi so we cannot compute "
+                          "resources for it.".format(package),
+                          PackageNotFoundWarning)
+            dependencies[package]["name"] = package
 
     return OrderedDict(
         [(package, dependencies[package]) for package in sorted(dependencies.keys())]
