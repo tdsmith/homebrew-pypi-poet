@@ -19,9 +19,11 @@ import logging
 import os
 import sys
 from textwrap import dedent
+from urllib.parse import urldefrag
 import warnings
 
 from jinja2 import Template
+import pip
 import pkg_resources
 
 from .version import __version__
@@ -41,7 +43,7 @@ FORMULA_TEMPLATE = Template(dedent("""\
       include Language::Python::Virtualenv
 
       desc "Shiny new formula"
-      homepage "{{ package.homepage }}"
+      homepage ""
       url "{{ package.url }}"
       sha256 "{{ package.checksum }}"
 
@@ -105,44 +107,40 @@ def recursive_dependencies(package):
 
 
 def research_package(name, version=None):
-    f = urlopen("https://pypi.io/pypi/{}/json".format(name))
-    reader = codecs.getreader("utf-8")
-    pkg_data = json.load(reader(f))
-    f.close()
-    d = {}
-    d['name'] = pkg_data['info']['name']
-    d['homepage'] = pkg_data['info'].get('home_page', '')
-    artefact = None
+    finder = pip.index.PackageFinder(
+        find_links=[],
+        index_urls=['https://pypi.io/simple'],
+        session=pip.download.PipSession(),
+        format_control=pip.index.FormatControl({':all:'}, set()),  # no binary
+    )
+    link = None
     if version:
-        for pypi_version in pkg_data['releases']:
-            if pkg_resources.safe_version(pypi_version) == version:
-                for version_artefact in pkg_data['releases'][pypi_version]:
-                    if version_artefact['packagetype'] == 'sdist':
-                        artefact = version_artefact
-                        break
-        if artefact is None:
+        req = pip.req.InstallRequirement.from_line('%s==%s' % (name, version), None)
+        try:
+            link = finder.find_requirement(req, False)
+        except pip.exceptions.DistributionNotFound:
             warnings.warn("Could not find an exact version match for "
                           "{} version {}; using newest instead".
                           format(name, version), PackageVersionNotFoundWarning)
+    if link is None:  # no version given or exact match not found
+        req = pip.req.InstallRequirement.from_line(name, None)
+        link = finder.find_requirement(req, False)
 
-    if artefact is None:  # no version given or exact match not found
-        for url in pkg_data['urls']:
-            if url['packagetype'] == 'sdist':
-                artefact = url
-                break
-
-    d['url'] = artefact['url']
-    if 'digests' in artefact and 'sha256' in artefact['digests']:
+    url = urldefrag(link.url)[0]  # strip the fragment (containing the hash)
+    if link.hash_name == 'sha256':
         logging.debug("Using provided checksum for %s", name)
-        d['checksum'] = artefact['digests']['sha256']
+        sha256 = link.hash
     else:
         logging.debug("Fetching sdist to compute checksum for %s", name)
-        with closing(urlopen(artefact['url'])) as f:
-            d['checksum'] = sha256(f.read()).hexdigest()
-        logging.debug("Done fetching %s", name)
-    d['checksum_type'] = 'sha256'
-    f.close()
-    return d
+        with closing(urlopen(url)) as f:
+            sha256 = sha256(f.read()).hexdigest()
+
+    return {
+        'name': name,
+        'url': url,
+        'checksum_type': 'sha256',
+        'checksum': sha256,
+    }
 
 
 def make_graph(pkg):
