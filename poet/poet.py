@@ -170,7 +170,7 @@ def make_graph(pkg):
     )
 
 
-def formula_for(package):
+def formula_for(package, template=FORMULA_TEMPLATE):
     nodes = make_graph(package)
     resources = [value for key, value in nodes.items()
                  if key.lower() != package.lower()]
@@ -183,10 +183,10 @@ def formula_for(package):
         raise Exception("Could not find package {} in nodes {}".format(package, nodes.keys()))
 
     python = "python" if sys.version_info.major == 2 else "python3"
-    return FORMULA_TEMPLATE.render(package=root,
-                                   resources=resources,
-                                   python=python,
-                                   ResourceTemplate=RESOURCE_TEMPLATE)
+    return template.render(package=root,
+                           resources=resources,
+                           python=python,
+                           ResourceTemplate=RESOURCE_TEMPLATE)
 
 
 def resources_for(package):
