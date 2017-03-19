@@ -28,8 +28,10 @@ Usage is like:
 
 ::
 
-    usage: poet [-h] [--single package [package ...] | --formula package |
-                      --resources package]
+    usage: poet [-h] [-V]
+                [--single package [package ...] | --formula package |
+                 --resources package]
+                [--also package]
 
     Generate Homebrew resource stanzas for pypi packages and their dependencies.
 
@@ -41,9 +43,15 @@ Usage is like:
       --formula package, -f package
                             Generate a complete formula for a pypi package with
                             its recursive pypi dependencies as resources.
+      --also package, -a package
+                            Specify an additional package that should be added to
+                            the resource list with its recursive dependencies. May
+                            not be used with --single. May be specified more than
+                            once.
       --resources package, -r package
                             Generate resource stanzas for a package and its
                             recursive dependencies (default).
+      -V, --version         show program's version number and exit
 
 License
 -------
