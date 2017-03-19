@@ -77,10 +77,9 @@ def recursive_dependencies(package):
 
 
 def research_package(name, version=None):
-    f = urlopen("https://pypi.io/pypi/{}/json".format(name))
-    reader = codecs.getreader("utf-8")
-    pkg_data = json.load(reader(f))
-    f.close()
+    with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
+        reader = codecs.getreader("utf-8")
+        pkg_data = json.load(reader(f))
     d = {}
     d['name'] = pkg_data['info']['name']
     d['homepage'] = pkg_data['info'].get('home_page', '')
@@ -113,7 +112,6 @@ def research_package(name, version=None):
             d['checksum'] = sha256(f.read()).hexdigest()
         logging.debug("Done fetching %s", name)
     d['checksum_type'] = 'sha256'
-    f.close()
     return d
 
 
