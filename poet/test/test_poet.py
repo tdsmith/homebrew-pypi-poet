@@ -66,3 +66,8 @@ def test_lint(tmpdir):
     finally:
         tmpdir.join("pytest.rb").remove(ignore_errors=True)
         home.chdir()
+
+
+def test_camel_case():
+    result = poet("-f", "magic-wormhole")
+    assert b"class MagicWormhole < Formula" in result
