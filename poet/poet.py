@@ -84,14 +84,21 @@ class PackageVersionNotFoundWarning(UserWarning):
 
 
 def recursive_dependencies(package):
-    discovered = {package}
+    if not isinstance(package, pkg_resources.Requirement):
+        raise TypeError("Expected a Requirement; got a %s" % type(package))
+
+    discovered = {package.project_name.lower()}
     visited = set()
 
     def walk(package):
+        if not isinstance(package, pkg_resources.Requirement):
+            raise TypeError("Expected a Requirement; got a %s" % type(package))
         if package in visited:
             return
         visited.add(package)
-        extras = ("security",) if package == "requests" else ()
+        extras = package.extras
+        if package == "requests":
+            extras += ("security",)
         try:
             reqs = pkg_resources.get_distribution(package).requires(extras)
         except pkg_resources.DistributionNotFound:
@@ -147,7 +154,7 @@ def research_package(name, version=None):
 
 def make_graph(pkg):
     ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
-    pkg_deps = recursive_dependencies(pkg)
+    pkg_deps = recursive_dependencies(pkg_resources.Requirement.parse(pkg))
 
     dependencies = {key: {} for key in pkg_deps if key not in ignore}
     installed_packages = pkg_resources.working_set
