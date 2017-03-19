@@ -149,15 +149,20 @@ def make_graph(pkg):
     )
 
 
-def formula_for(package):
-    nodes = make_graph(package)
-    resources = [value for key, value in nodes.items()
-                 if key.lower() != package.lower()]
+def formula_for(package, also=None):
+    also = also or []
 
-    if package in nodes:
-        root = nodes[package]
-    elif package.lower() in nodes:
-        root = nodes[package.lower()]
+    req = pkg_resources.Requirement.parse(package)
+    package_name = req.project_name
+
+    nodes = merge_graphs(make_graph(p) for p in [package] + also)
+    resources = [value for key, value in nodes.items()
+                 if key.lower() != package_name.lower()]
+
+    if package_name in nodes:
+        root = nodes[package_name]
+    elif package_name.lower() in nodes:
+        root = nodes[package_name.lower()]
     else:
         raise Exception("Could not find package {} in nodes {}".format(package, nodes.keys()))
 
@@ -168,8 +173,8 @@ def formula_for(package):
                                    ResourceTemplate=RESOURCE_TEMPLATE)
 
 
-def resources_for(package):
-    nodes = make_graph(package)
+def resources_for(packages):
+    nodes = merge_graphs(make_graph(p) for p in packages)
     return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
                         for node in nodes.values()])
 
@@ -208,6 +213,11 @@ def main():
         '--resources', '-r', metavar='package',
         help='Generate resource stanzas for a package and its recursive '
              'dependencies (default).')
+    parser.add_argument(
+        '--also', '-a', metavar='package', action='append', default=[],
+        help='Specify an additional package that should be added to the '
+             'resource list with its recursive dependencies. May not be used '
+             'with --single. May be specified more than once.')
     parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
     parser.add_argument(
         '-V', '--version', action='version',
@@ -220,8 +230,14 @@ def main():
         parser.print_usage(sys.stderr)
         return 1
 
+    if args.also and args.single:
+        print("Can't use --also with --single",
+              file=sys.stderr)
+        parser.print_usage(sys.stderr)
+        return 1
+
     if args.formula:
-        print(formula_for(args.formula))
+        print(formula_for(args.formula, args.also))
     elif args.single:
         for i, package in enumerate(args.single):
             data = research_package(package)
@@ -233,7 +249,7 @@ def main():
         if not package:
             parser.print_usage(sys.stderr)
             return 1
-        print(resources_for(package))
+        print(resources_for([package] + args.also))
     return 0
 
 
