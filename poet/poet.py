@@ -18,12 +18,11 @@ import json
 import logging
 import os
 import sys
-from textwrap import dedent
 import warnings
 
-from jinja2 import Template
 import pkg_resources
 
+from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE
 from .version import __version__
 
 try:
@@ -35,44 +34,6 @@ except ImportError:
 
 # Show warnings and greater by default
 logging.basicConfig(level=int(os.environ.get("POET_DEBUG", 30)))
-
-FORMULA_TEMPLATE = Template(dedent("""\
-    class {{ package.name|capitalize }} < Formula
-      include Language::Python::Virtualenv
-
-      desc "Shiny new formula"
-      homepage "{{ package.homepage }}"
-      url "{{ package.url }}"
-      sha256 "{{ package.checksum }}"
-
-      depends_on :{{ python }}
-
-    {% if resources %}
-    {%   for resource in resources %}
-    {%     include ResourceTemplate %}
-
-
-    {%   endfor %}
-    {% endif %}
-      def install
-    {% if python == "python3" %}
-        virtualenv_create(libexec, "python3")
-    {% endif %}
-        virtualenv_install_with_resources
-      end
-
-      test do
-        false
-      end
-    end
-    """), trim_blocks=True)
-
-RESOURCE_TEMPLATE = Template("""\
-  resource "{{ resource.name }}" do
-    url "{{ resource.url }}"
-    {{ resource.checksum_type }} "{{ resource.checksum }}"
-  end
-""")
 
 
 class PackageNotInstalledWarning(UserWarning):
