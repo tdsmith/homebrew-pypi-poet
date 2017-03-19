@@ -147,6 +147,11 @@ def formula_for(package):
         root = nodes[package]
     elif package.lower() in nodes:
         root = nodes[package.lower()]
+    elif package in excludes:
+        root = {'name': package,
+                'homepage': 'http://example.com/your_package_homepage',
+                'url': 'http://pypi.example.com/your_package_url',
+                'checksum': 'Insert SHA256 here'}
     else:
         raise Exception("Could not find package {} in nodes {}".format(package, nodes.keys()))
 
@@ -157,8 +162,8 @@ def formula_for(package):
                                    ResourceTemplate=RESOURCE_TEMPLATE)
 
 
-def resources_for(package):
-    nodes = make_graph(package)
+def resources_for(package, excludes):
+    nodes = make_graph(package, excludes)
     return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
                         for node in nodes.values()])
 
@@ -192,8 +197,14 @@ def main():
         parser.print_usage(sys.stderr)
         return 1
 
+    if (args.exclude and args.single):
+        print('--singel/-s not allowed with argument --exclude/-e',
+              file=sys.stderr)
+        parser.print_usage(sys.stderr)
+        return 1
+
     if args.formula:
-        print(formula_for(args.formula))
+        print(formula_for(args.formula, args.exclude))
     elif args.single:
         for i, package in enumerate(args.single):
             data = research_package(package)
@@ -205,7 +216,7 @@ def main():
         if not package:
             parser.print_usage(sys.stderr)
             return 1
-        print(resources_for(package))
+        print(resources_for(package, args.exclude))
     return 0
 
 
