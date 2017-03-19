@@ -44,6 +44,10 @@ class PackageVersionNotFoundWarning(UserWarning):
     pass
 
 
+class ConflictingDependencyWarning(UserWarning):
+    pass
+
+
 def recursive_dependencies(package):
     if not isinstance(package, pkg_resources.Requirement):
         raise TypeError("Expected a Requirement; got a %s" % type(package))
@@ -114,6 +118,13 @@ def research_package(name, version=None):
 
 
 def make_graph(pkg):
+    """Returns a dictionary of information about pkg & its recursive deps.
+
+    Given a string, which can be parsed as a requirement specifier, return a
+    dictionary where each key is the name of pkg or one of its recursive
+    dependencies, and each value is a dictionary returned by research_package.
+    (No, it's not really a graph.)
+    """
     ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
     pkg_deps = recursive_dependencies(pkg_resources.Requirement.parse(pkg))
 
@@ -161,6 +172,23 @@ def resources_for(package):
     nodes = make_graph(package)
     return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
                         for node in nodes.values()])
+
+
+def merge_graphs(graphs):
+    result = {}
+    for g in graphs:
+        for key in g:
+            if key not in result:
+                result[key] = g[key]
+            elif result[key] == g[key]:
+                pass
+            else:
+                warnings.warn(
+                    "Merge conflict: {l.name} {l.version} and "
+                    "{r.name} {r.version}; using the former.".
+                    format(l=result[key], r=g[key]),
+                    ConflictingDependencyWarning)
+    return OrderedDict([k, result[k]] for k in sorted(result.keys()))
 
 
 def main():
