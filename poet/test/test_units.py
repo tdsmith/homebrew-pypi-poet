@@ -18,6 +18,13 @@ class TestPoet(object):
             poet.research_package("eleven")
             assert "Fetching sdist" in str(l)
 
+
+class TestUtils(object):
+    def test_dash_to_studly(self):
+        assert poet.util.dash_to_studly("magic-worm-hole") == "MagicWormHole"
+        assert poet.util.dash_to_studly("some_package-name") == "SomePackageName"
+
+
 unlinted = """
   resource "homebrew-pypi-poet" do
     url "https://files.pythonhosted.org/packages/18/6d/c6d1543d2272696f22893eff382eb4b7d2594c983f87e7786abf6ad3ec9e/homebrew-pypi-poet-0.7.1.tar.gz"
