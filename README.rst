@@ -60,7 +60,7 @@ Alessio Bogon, Julien Maupetit, and Zhiming Wang are thanked for their helpful c
    :target: https://travis-ci.org/tdsmith/homebrew-pypi-poet
 .. |Code Health| image:: https://landscape.io/github/tdsmith/homebrew-pypi-poet/master/landscape.svg?style=flat
    :target: https://landscape.io/github/tdsmith/homebrew-pypi-poet/master
-.. |PyPI page| image:: https://img.shields.io/pypi/dm/homebrew-pypi-poet.svg
+.. |PyPI page| image:: https://img.shields.io/pypi/v/homebrew-pypi-poet.svg
    :target: https://pypi.python.org/pypi/homebrew-pypi-poet
 .. |MIT license| image:: https://img.shields.io/pypi/l/homebrew-pypi-poet.svg
    :target: https://github.com/tdsmith/homebrew-pypi-poet/blob/master/LICENSE
