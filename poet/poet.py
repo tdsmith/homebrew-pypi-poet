@@ -44,6 +44,10 @@ class PackageVersionNotFoundWarning(UserWarning):
     pass
 
 
+class ConflictingDependencyWarning(UserWarning):
+    pass
+
+
 def recursive_dependencies(package):
     if not isinstance(package, pkg_resources.Requirement):
         raise TypeError("Expected a Requirement; got a %s" % type(package))
@@ -73,10 +77,9 @@ def recursive_dependencies(package):
 
 
 def research_package(name, version=None):
-    f = urlopen("https://pypi.io/pypi/{}/json".format(name))
-    reader = codecs.getreader("utf-8")
-    pkg_data = json.load(reader(f))
-    f.close()
+    with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
+        reader = codecs.getreader("utf-8")
+        pkg_data = json.load(reader(f))
     d = {}
     d['name'] = pkg_data['info']['name']
     d['homepage'] = pkg_data['info'].get('home_page', '')
@@ -109,11 +112,17 @@ def research_package(name, version=None):
             d['checksum'] = sha256(f.read()).hexdigest()
         logging.debug("Done fetching %s", name)
     d['checksum_type'] = 'sha256'
-    f.close()
     return d
 
 
 def make_graph(pkg):
+    """Returns a dictionary of information about pkg & its recursive deps.
+
+    Given a string, which can be parsed as a requirement specifier, return a
+    dictionary where each key is the name of pkg or one of its recursive
+    dependencies, and each value is a dictionary returned by research_package.
+    (No, it's not really a graph.)
+    """
     ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
     pkg_deps = recursive_dependencies(pkg_resources.Requirement.parse(pkg))
 
@@ -138,15 +147,20 @@ def make_graph(pkg):
     )
 
 
-def formula_for(package):
-    nodes = make_graph(package)
-    resources = [value for key, value in nodes.items()
-                 if key.lower() != package.lower()]
+def formula_for(package, also=None):
+    also = also or []
 
-    if package in nodes:
-        root = nodes[package]
-    elif package.lower() in nodes:
-        root = nodes[package.lower()]
+    req = pkg_resources.Requirement.parse(package)
+    package_name = req.project_name
+
+    nodes = merge_graphs(make_graph(p) for p in [package] + also)
+    resources = [value for key, value in nodes.items()
+                 if key.lower() != package_name.lower()]
+
+    if package_name in nodes:
+        root = nodes[package_name]
+    elif package_name.lower() in nodes:
+        root = nodes[package_name.lower()]
     else:
         raise Exception("Could not find package {} in nodes {}".format(package, nodes.keys()))
 
@@ -157,10 +171,27 @@ def formula_for(package):
                                    ResourceTemplate=RESOURCE_TEMPLATE)
 
 
-def resources_for(package):
-    nodes = make_graph(package)
+def resources_for(packages):
+    nodes = merge_graphs(make_graph(p) for p in packages)
     return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
                         for node in nodes.values()])
+
+
+def merge_graphs(graphs):
+    result = {}
+    for g in graphs:
+        for key in g:
+            if key not in result:
+                result[key] = g[key]
+            elif result[key] == g[key]:
+                pass
+            else:
+                warnings.warn(
+                    "Merge conflict: {l.name} {l.version} and "
+                    "{r.name} {r.version}; using the former.".
+                    format(l=result[key], r=g[key]),
+                    ConflictingDependencyWarning)
+    return OrderedDict([k, result[k]] for k in sorted(result.keys()))
 
 
 def main():
@@ -180,6 +211,11 @@ def main():
         '--resources', '-r', metavar='package',
         help='Generate resource stanzas for a package and its recursive '
              'dependencies (default).')
+    parser.add_argument(
+        '--also', '-a', metavar='package', action='append', default=[],
+        help='Specify an additional package that should be added to the '
+             'resource list with its recursive dependencies. May not be used '
+             'with --single. May be specified more than once.')
     parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
     parser.add_argument(
         '-V', '--version', action='version',
@@ -192,8 +228,14 @@ def main():
         parser.print_usage(sys.stderr)
         return 1
 
+    if args.also and args.single:
+        print("Can't use --also with --single",
+              file=sys.stderr)
+        parser.print_usage(sys.stderr)
+        return 1
+
     if args.formula:
-        print(formula_for(args.formula))
+        print(formula_for(args.formula, args.also))
     elif args.single:
         for i, package in enumerate(args.single):
             data = research_package(package)
@@ -205,7 +247,7 @@ def main():
         if not package:
             parser.print_usage(sys.stderr)
             return 1
-        print(resources_for(package))
+        print(resources_for([package] + args.also))
     return 0
 
 
