@@ -102,15 +102,20 @@ def research_package(name, version=None):
                 artefact = url
                 break
 
-    d['url'] = artefact['url']
-    if 'digests' in artefact and 'sha256' in artefact['digests']:
-        logging.debug("Using provided checksum for %s", name)
-        d['checksum'] = artefact['digests']['sha256']
-    else:
-        logging.debug("Fetching sdist to compute checksum for %s", name)
-        with closing(urlopen(artefact['url'])) as f:
-            d['checksum'] = sha256(f.read()).hexdigest()
-        logging.debug("Done fetching %s", name)
+    if artefact:
+        d['url'] = artefact['url']
+        if 'digests' in artefact and 'sha256' in artefact['digests']:
+            logging.debug("Using provided checksum for %s", name)
+            d['checksum'] = artefact['digests']['sha256']
+        else:
+            logging.debug("Fetching sdist to compute checksum for %s", name)
+            with closing(urlopen(artefact['url'])) as f:
+                d['checksum'] = sha256(f.read()).hexdigest()
+            logging.debug("Done fetching %s", name)
+    else:  # no sdist found
+        d['url'] = ''
+        d['checksum'] = ''
+        warnings.warn("No sdist found for %s" % name)
     d['checksum_type'] = 'sha256'
     return d
 
