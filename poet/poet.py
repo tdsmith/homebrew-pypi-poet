@@ -91,6 +91,9 @@ def research_package(name, version=None):
                     if version_artefact['packagetype'] == 'sdist':
                         artefact = version_artefact
                         break
+                    if version_artefact['packagetype'] == 'bdist_wheel':
+                        artefact = version_artefact
+                        break
         if artefact is None:
             warnings.warn("Could not find an exact version match for "
                           "{} version {}; using newest instead".
@@ -99,6 +102,9 @@ def research_package(name, version=None):
     if artefact is None:  # no version given or exact match not found
         for url in pkg_data['urls']:
             if url['packagetype'] == 'sdist':
+                artefact = url
+                break
+            if url['packagetype'] == 'bdist_wheel':
                 artefact = url
                 break
 
