@@ -21,16 +21,12 @@ import sys
 import warnings
 
 import pkg_resources
+import six
 
 from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE
 from .version import __version__
 
-try:
-    # Python 2.x
-    from urllib2 import urlopen
-except ImportError:
-    # Python 3.x
-    from urllib.request import urlopen
+from six.moves.urllib.request import urlopen
 
 # Show warnings and greater by default
 logging.basicConfig(level=int(os.environ.get("POET_DEBUG", 30)))
@@ -169,7 +165,7 @@ def formula_for(package, also=None):
     else:
         raise Exception("Could not find package {} in nodes {}".format(package, nodes.keys()))
 
-    python = "python" if sys.version_info.major == 2 else "python3"
+    python = "python" if six.PY2 else "python3"
     return FORMULA_TEMPLATE.render(package=root,
                                    resources=resources,
                                    python=python,
