@@ -6,8 +6,8 @@ branches:
     - master
     - /^v\d.*/
 env:
-- TOXENV=py2 PYTHON=python
-- TOXENV=py2-flake8 PYTHON=python
+- TOXENV=py2 PYTHON=python2
+- TOXENV=py2-flake8 PYTHON=python2
 - TOXENV=py3 PYTHON=python3
 
 before_install:
