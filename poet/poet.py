@@ -169,7 +169,7 @@ def formula_for(package, also=None):
     else:
         raise Exception("Could not find package {} in nodes {}".format(package, nodes.keys()))
 
-    python = "python" if sys.version_info.major == 2 else "python3"
+    python = "python@2" if sys.version_info.major == 2 else "python"
     return FORMULA_TEMPLATE.render(package=root,
                                    resources=resources,
                                    python=python,
