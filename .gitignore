@@ -58,3 +58,6 @@ target/
 Session.vim
 .netrwhist
 *~
+
+# pytest
+.pytest_cache/

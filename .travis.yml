@@ -2,18 +2,18 @@ os: osx
 osx_image: xcode9.2
 language: generic
 branches:
-    only:
+  only:
     - master
     - /^v\d.*/
 env:
-- TOXENV=py2 PYTHON=python2
-- TOXENV=py2-flake8 PYTHON=python2
-- TOXENV=py3 PYTHON=python3
+- TOXENV=py2 PYTHON=python2 BREWPY=python@2
+- TOXENV=py2-flake8 PYTHON=python2 BREWPY=python@2
+- TOXENV=py3 PYTHON=python3 BREWPY=python
 
 before_install:
 - brew update
 install:
-- brew ls $PYTHON || brew install $PYTHON
+- brew ls $BREWPY || brew install $BREWPY
 - $PYTHON -m pip install tox coverage coveralls
 - if [ $PYTHON == "python2" ]; then ln -fs /usr/local/bin/python2 /usr/local/bin/python; ln -fs /usr/local/bin/pip2 /usr/local/bin/pip; fi
 - sudo mkdir -p /usr/local/man && sudo chown $USER /usr/local/man
