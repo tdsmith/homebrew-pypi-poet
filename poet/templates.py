@@ -28,9 +28,6 @@ FORMULA_TEMPLATE = env.from_string(dedent("""\
     {%   endfor %}
     {% endif %}
       def install
-    {% if python == "python3" %}
-        virtualenv_create(libexec, "python3")
-    {% endif %}
         virtualenv_install_with_resources
       end
 
