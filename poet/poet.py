@@ -9,16 +9,17 @@ spits out Homebrew resource stanzas.
 """
 
 from __future__ import print_function
+
 import argparse
 import codecs
-from collections import OrderedDict
-from contextlib import closing
-from hashlib import sha256
 import json
 import logging
 import os
 import sys
 import warnings
+from collections import OrderedDict
+from contextlib import closing
+from hashlib import sha256
 
 import pkg_resources
 
@@ -80,36 +81,34 @@ def research_package(name, version=None):
     with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
         reader = codecs.getreader("utf-8")
         pkg_data = json.load(reader(f))
-    d = {}
-    d['name'] = pkg_data['info']['name']
-    d['homepage'] = pkg_data['info'].get('home_page', '')
-    artefact = None
+    d = {'name': pkg_data['info']['name'], 'homepage': pkg_data['info'].get('home_page', '')}
+    artifact = None
     if version:
         for pypi_version in pkg_data['releases']:
             if pkg_resources.safe_version(pypi_version) == version:
-                for version_artefact in pkg_data['releases'][pypi_version]:
-                    if version_artefact['packagetype'] == 'sdist':
-                        artefact = version_artefact
+                for version_artifact in pkg_data['releases'][pypi_version]:
+                    if version_artifact['packagetype'] == 'sdist':
+                        artifact = version_artifact
                         break
-        if artefact is None:
+        if artifact is None:
             warnings.warn("Could not find an exact version match for "
                           "{} version {}; using newest instead".
                           format(name, version), PackageVersionNotFoundWarning)
 
-    if artefact is None:  # no version given or exact match not found
+    if artifact is None:  # no version given or exact match not found
         for url in pkg_data['urls']:
             if url['packagetype'] == 'sdist':
-                artefact = url
+                artifact = url
                 break
 
-    if artefact:
-        d['url'] = artefact['url']
-        if 'digests' in artefact and 'sha256' in artefact['digests']:
+    if artifact:
+        d['url'] = artifact['url']
+        if 'digests' in artifact and 'sha256' in artifact['digests']:
             logging.debug("Using provided checksum for %s", name)
-            d['checksum'] = artefact['digests']['sha256']
+            d['checksum'] = artifact['digests']['sha256']
         else:
             logging.debug("Fetching sdist to compute checksum for %s", name)
-            with closing(urlopen(artefact['url'])) as f:
+            with closing(urlopen(artifact['url'])) as f:
                 d['checksum'] = sha256(f.read()).hexdigest()
             logging.debug("Done fetching %s", name)
     else:  # no sdist found
@@ -120,7 +119,7 @@ def research_package(name, version=None):
     return d
 
 
-def make_graph(pkg):
+def make_graph(pkg, excludes):
     """Returns a dictionary of information about pkg & its recursive deps.
 
     Given a string, which can be parsed as a requirement specifier, return a
@@ -128,7 +127,7 @@ def make_graph(pkg):
     dependencies, and each value is a dictionary returned by research_package.
     (No, it's not really a graph.)
     """
-    ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
+    ignore = ['argparse', 'pip', 'setuptools', 'wsgiref'] + excludes
     pkg_deps = recursive_dependencies(pkg_resources.Requirement.parse(pkg))
 
     dependencies = {key: {} for key in pkg_deps if key not in ignore}
@@ -142,7 +141,6 @@ def make_graph(pkg):
                           "resources for its dependencies.".format(package),
                           PackageNotInstalledWarning)
             dependencies[package]['version'] = None
-
     for package in dependencies:
         package_data = research_package(package, dependencies[package]['version'])
         dependencies[package].update(package_data)
@@ -152,13 +150,14 @@ def make_graph(pkg):
     )
 
 
-def formula_for(package, also=None):
+def formula_for(package, also=None, excludes=None):
+    excludes = excludes or []
     also = also or []
 
     req = pkg_resources.Requirement.parse(package)
     package_name = req.project_name
 
-    nodes = merge_graphs(make_graph(p) for p in [package] + also)
+    nodes = merge_graphs(make_graph(p, excludes) for p in [package] + also)
     resources = [value for key, value in nodes.items()
                  if key.lower() != package_name.lower()]
 
@@ -166,18 +165,24 @@ def formula_for(package, also=None):
         root = nodes[package_name]
     elif package_name.lower() in nodes:
         root = nodes[package_name.lower()]
+    elif package in excludes:
+        root = {'name': package,
+                'homepage': 'http://example.com/your_package_homepage',
+                'url': 'http://pypi.example.com/your_package_url',
+                'checksum': 'Insert SHA256 here'}
     else:
         raise Exception("Could not find package {} in nodes {}".format(package, nodes.keys()))
 
-    python = "python" if sys.version_info.major == 2 else "python3"
+    python = "python@2" if sys.version_info.major == 2 else "python"
     return FORMULA_TEMPLATE.render(package=root,
                                    resources=resources,
                                    python=python,
                                    ResourceTemplate=RESOURCE_TEMPLATE)
 
 
-def resources_for(packages):
-    nodes = merge_graphs(make_graph(p) for p in packages)
+def resources_for(packages, excludes=None):
+    excludes = excludes or []
+    nodes = merge_graphs(make_graph(p, excludes) for p in packages)
     return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
                         for node in nodes.values()])
 
@@ -193,8 +198,7 @@ def merge_graphs(graphs):
             else:
                 warnings.warn(
                     "Merge conflict: {l.name} {l.version} and "
-                    "{r.name} {r.version}; using the former.".
-                    format(l=result[key], r=g[key]),
+                    "{r.name} {r.version}; using the former.".format(l=result[key], r=g[key]),
                     ConflictingDependencyWarning)
     return OrderedDict([k, result[k]] for k in sorted(result.keys()))
 
@@ -221,6 +225,8 @@ def main():
         help='Specify an additional package that should be added to the '
              'resource list with its recursive dependencies. May not be used '
              'with --single. May be specified more than once.')
+    parser.add_argument('--exclude', '-e', nargs='+', metavar='package',
+                        help='Exclude one or more packages but not its recursive dependencies.')
     parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
     parser.add_argument(
         '-V', '--version', action='version',
@@ -239,20 +245,26 @@ def main():
         parser.print_usage(sys.stderr)
         return 1
 
+    if args.exclude and args.single:
+        print('--single/-s not allowed with argument --exclude/-e',
+              file=sys.stderr)
+        parser.print_usage(sys.stderr)
+        return 1
+
     if args.formula:
-        print(formula_for(args.formula, args.also))
+        print(formula_for(args.formula, args.also, args.exclude))
     elif args.single:
         for i, package in enumerate(args.single):
             data = research_package(package)
             print(RESOURCE_TEMPLATE.render(resource=data))
-            if i != len(args.single)-1:
+            if i != len(args.single) - 1:
                 print()
     else:
         package = args.resources or args.package
         if not package:
             parser.print_usage(sys.stderr)
             return 1
-        print(resources_for([package] + args.also))
+        print(resources_for([package] + args.also, args.exclude))
     return 0
 
 
