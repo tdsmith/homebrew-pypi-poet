@@ -24,9 +24,9 @@ def test_formula():
     result = poet("-f", "pytest")
     assert b'resource "py" do' in result
     if sys.version_info.major == 2:
-        assert b'depends_on "python"' in result
+        assert b'depends_on "python@2"' in result
     else:
-        assert b'depends_on "python3"' in result
+        assert b'depends_on "python"' in result
 
 
 def test_case_sensitivity():
@@ -41,7 +41,7 @@ def test_resources():
 
 
 def test_uses_sha256_from_json(monkeypatch):
-    monkeypatch.setenv("POET_DEBUG", 10)
+    monkeypatch.setenv("POET_DEBUG", '10')
     result = poet("pytest")
     assert b"Using provided checksum for py\n" in result
 
@@ -51,7 +51,7 @@ def test_audit(tmpdir):
     try:
         with open("pytest.rb", "wb") as f:
             subprocess.check_call(["poet", "-f", "pytest"], stdout=f)
-        subprocess.check_call(["brew", "audit", "--strict", "./pytest.rb"])
+        subprocess.check_call(["brew", "audit", "--strict", "./pytest.rb"], stderr=subprocess.STDOUT)
     finally:
         tmpdir.join("pytest.rb").remove(ignore_errors=True)
         home.chdir()

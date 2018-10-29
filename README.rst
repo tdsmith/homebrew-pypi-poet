@@ -32,6 +32,7 @@ Usage is like:
                 [--single package [package ...] | --formula package |
                  --resources package]
                 [--also package]
+                [--exclude package [package ...]]
 
     Generate Homebrew resource stanzas for pypi packages and their dependencies.
 
@@ -51,6 +52,9 @@ Usage is like:
       --resources package, -r package
                             Generate resource stanzas for a package and its
                             recursive dependencies (default).
+      --exclude package [package ...], -e package [package ...]
+                            Exclude one or more packages but not its recursive
+                            dependencies.
       -V, --version         show program's version number and exit
 
 License
