@@ -92,3 +92,42 @@ old_style_pypi_json = r"""
     ]
 }
 """
+
+pipfile_lock = r"""
+{
+    "_meta": {
+        "hash": {
+            "sha256": "487983026d17b364ee5aef59eb372788015c8e6aa0f753f89a99dc185a3d1f93"
+        },
+        "pipfile-spec": 6,
+        "requires": {
+            "python_version": "3.9"
+        },
+        "sources": [
+            {
+                "name": "pypi",
+                "url": "https://pypi.org/simple",
+                "verify_ssl": true
+            }
+        ]
+    },
+    "default": {
+        "attrs": {
+            "hashes": [
+                "sha256:149e90d6d8ac20db7a955ad60cf0e6881a3f20d37096140088356da6c716b0b1",
+                "sha256:ef6aaac3ca6cd92904cdd0d83f629a15f18053ec84e6432106f7a4d04ae4f5fb"
+            ],
+            "index": "pypi",
+            "version": "==21.2.0"
+        }
+    },
+    "develop": {}
+}
+"""
+
+pipfile_lock_stanzas = r"""
+  resource "attrs" do
+    url "https://files.pythonhosted.org/packages/ed/d6/3ebca4ca65157c12bd08a63e20ac0bdc21ac7f3694040711f9fd073c0ffb/attrs-21.2.0.tar.gz"
+    sha256 "ef6aaac3ca6cd92904cdd0d83f629a15f18053ec84e6432106f7a4d04ae4f5fb"
+  end
+"""

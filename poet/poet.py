@@ -195,6 +195,39 @@ def merge_graphs(graphs):
     return OrderedDict([k, result[k]] for k in sorted(result.keys()))
 
 
+def get_lock_file_from_path(path):
+    if not os.path.exists(path):
+        raise Exception('The path "%s" does not exist' % path)
+
+    os.chdir(path)
+    if not os.path.isfile('Pipfile.lock'):
+        raise Exception('The path "%s" does not have a Pipfile.lock' % path)
+
+    with open('Pipfile.lock', 'r') as lockfile:
+        locked_data = json.load(lockfile)
+        lockfile.close()
+
+    return locked_data
+
+
+def from_lock(lock_data):
+    if 'default' not in lock_data:
+        raise Exception('Missing "default" key in lock file. Not sure what to do now.')
+
+    packages = []
+    for name, package_data in lock_data['default'].items():
+        if 'version' not in package_data:
+            continue
+
+        version = package_data['version'].replace('==', '')
+        package_data = research_package(name, version)
+        packages.append(package_data)
+
+    return '\n\n'.join(
+        RESOURCE_TEMPLATE.render(resource=node) for node in packages
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Generate Homebrew resource stanzas for pypi packages '
@@ -219,9 +252,18 @@ def main():
              'with --single. May be specified more than once.')
     parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
     parser.add_argument(
+        '--lock', '-l', metavar='path',
+        help='Specify a path to a package containing a Pipfile.lock that yoo want to generate stanzas for.'
+    )
+    parser.add_argument(
         '-V', '--version', action='version',
         version='homebrew-pypi-poet {}'.format(__version__))
     args = parser.parse_args()
+
+    if args.path:
+        lock_file_data = get_lock_file_from_path(args.path)
+        print(from_lock(lock_file_data))
+        return 1
 
     if (args.formula or args.resources) and args.package:
         print('--formula and --resources take a single argument.',
