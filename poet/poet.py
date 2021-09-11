@@ -19,7 +19,6 @@ import logging
 import os
 import sys
 import warnings
-
 import pkg_resources
 
 from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE
@@ -80,9 +79,7 @@ def research_package(name, version=None):
     with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
         reader = codecs.getreader("utf-8")
         pkg_data = json.load(reader(f))
-    d = {}
-    d['name'] = pkg_data['info']['name']
-    d['homepage'] = pkg_data['info'].get('home_page', '')
+    d = {'name': pkg_data['info']['name'], 'homepage': pkg_data['info'].get('home_page', '')}
     artefact = None
     if version:
         for pypi_version in pkg_data['releases']:
@@ -178,8 +175,9 @@ def formula_for(package, also=None):
 
 def resources_for(packages):
     nodes = merge_graphs(make_graph(p) for p in packages)
-    return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
-                        for node in nodes.values()])
+    return '\n\n'.join(
+        RESOURCE_TEMPLATE.render(resource=node) for node in nodes.values()
+    )
 
 
 def merge_graphs(graphs):
@@ -188,9 +186,7 @@ def merge_graphs(graphs):
         for key in g:
             if key not in result:
                 result[key] = g[key]
-            elif result[key] == g[key]:
-                pass
-            else:
+            elif result[key] != g[key]:
                 warnings.warn(
                     "Merge conflict: {l.name} {l.version} and "
                     "{r.name} {r.version}; using the former.".
@@ -245,7 +241,7 @@ def main():
         for i, package in enumerate(args.single):
             data = research_package(package)
             print(RESOURCE_TEMPLATE.render(resource=data))
-            if i != len(args.single)-1:
+            if i != len(args.single) - 1:
                 print()
     else:
         package = args.resources or args.package
