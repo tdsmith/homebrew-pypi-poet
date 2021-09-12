@@ -260,8 +260,8 @@ def main():
         version='homebrew-pypi-poet {}'.format(__version__))
     args = parser.parse_args()
 
-    if args.path:
-        lock_file_data = get_lock_file_from_path(args.path)
+    if args.lock:
+        lock_file_data = get_lock_file_from_path(args.lock)
         print(from_lock(lock_file_data))
         return 1
 
