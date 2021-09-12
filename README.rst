@@ -51,6 +51,8 @@ Usage is like:
       --resources package, -r package
                             Generate resource stanzas for a package and its
                             recursive dependencies (default).
+      --lock path, -l path  Specify a path to a package containing a Pipfile.lock
+                            that you want to generate stanzas for.
       -V, --version         show program's version number and exit
 
 License

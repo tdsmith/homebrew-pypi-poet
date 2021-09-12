@@ -41,7 +41,7 @@ def test_resources():
 
 
 def test_uses_sha256_from_json(monkeypatch):
-    monkeypatch.setenv("POET_DEBUG", 10)
+    monkeypatch.setenv("POET_DEBUG", "10")
     result = poet("pytest")
     assert b"Using provided checksum for py\n" in result
 

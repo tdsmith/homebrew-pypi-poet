@@ -1,9 +1,8 @@
 from __future__ import absolute_import, print_function
-
 import mock
-
+import json
 import poet
-from poet_fixtures import old_style_pypi_json
+from poet_fixtures import old_style_pypi_json, pipfile_lock, pipfile_lock_stanzas
 from testfixtures import LogCapture
 
 
@@ -17,6 +16,10 @@ class TestPoet(object):
         with LogCapture() as l:
             poet.research_package("eleven")
             assert "Fetching sdist" in str(l)
+
+    def test_generate_from_pipfile_dot_lock(self):
+        output = poet.from_lock(json.loads(pipfile_lock))
+        assert output.strip() == pipfile_lock_stanzas.strip()
 
 
 class TestUtils(object):

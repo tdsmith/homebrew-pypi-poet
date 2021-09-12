@@ -1,5 +1,5 @@
 os: osx
-osx_image: xcode9.2
+osx_image: xcode12.5
 language: generic
 branches:
     only:
@@ -10,8 +10,6 @@ env:
 - TOXENV=py2-flake8 PYTHON=python2
 - TOXENV=py3 PYTHON=python3
 
-before_install:
-- brew update
 install:
 - brew ls $PYTHON || brew install $PYTHON
 - $PYTHON -m pip install tox coverage coveralls

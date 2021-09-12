@@ -19,7 +19,6 @@ import logging
 import os
 import sys
 import warnings
-
 import pkg_resources
 
 from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE
@@ -80,9 +79,7 @@ def research_package(name, version=None):
     with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
         reader = codecs.getreader("utf-8")
         pkg_data = json.load(reader(f))
-    d = {}
-    d['name'] = pkg_data['info']['name']
-    d['homepage'] = pkg_data['info'].get('home_page', '')
+    d = {'name': pkg_data['info']['name'], 'homepage': pkg_data['info'].get('home_page', '')}
     artefact = None
     if version:
         for pypi_version in pkg_data['releases']:
@@ -178,8 +175,9 @@ def formula_for(package, also=None):
 
 def resources_for(packages):
     nodes = merge_graphs(make_graph(p) for p in packages)
-    return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
-                        for node in nodes.values()])
+    return '\n\n'.join(
+        RESOURCE_TEMPLATE.render(resource=node) for node in nodes.values()
+    )
 
 
 def merge_graphs(graphs):
@@ -188,15 +186,46 @@ def merge_graphs(graphs):
         for key in g:
             if key not in result:
                 result[key] = g[key]
-            elif result[key] == g[key]:
-                pass
-            else:
+            elif result[key] != g[key]:
                 warnings.warn(
                     "Merge conflict: {l.name} {l.version} and "
                     "{r.name} {r.version}; using the former.".
                     format(l=result[key], r=g[key]),
                     ConflictingDependencyWarning)
     return OrderedDict([k, result[k]] for k in sorted(result.keys()))
+
+
+def get_lock_file_from_path(path):
+    if not os.path.exists(path):
+        raise Exception('The path "%s" does not exist' % path)
+
+    os.chdir(path)
+    if not os.path.isfile('Pipfile.lock'):
+        raise Exception('The path "%s" does not have a Pipfile.lock' % path)
+
+    with open('Pipfile.lock', 'r') as lockfile:
+        locked_data = json.load(lockfile)
+        lockfile.close()
+
+    return locked_data
+
+
+def from_lock(lock_data):
+    if 'default' not in lock_data:
+        raise Exception('Missing "default" key in lock file. Not sure what to do now.')
+
+    packages = []
+    for name, package_data in lock_data['default'].items():
+        if 'version' not in package_data:
+            continue
+
+        version = package_data['version'].replace('==', '')
+        package_data = research_package(name, version)
+        packages.append(package_data)
+
+    return '\n\n'.join(
+        RESOURCE_TEMPLATE.render(resource=node) for node in packages
+    )
 
 
 def main():
@@ -223,9 +252,18 @@ def main():
              'with --single. May be specified more than once.')
     parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
     parser.add_argument(
+        '--lock', '-l', metavar='path',
+        help='Specify a path to a package containing a Pipfile.lock that yoo want to generate stanzas for.'
+    )
+    parser.add_argument(
         '-V', '--version', action='version',
         version='homebrew-pypi-poet {}'.format(__version__))
     args = parser.parse_args()
+
+    if args.lock:
+        lock_file_data = get_lock_file_from_path(args.lock)
+        print(from_lock(lock_file_data))
+        return 1
 
     if (args.formula or args.resources) and args.package:
         print('--formula and --resources take a single argument.',
@@ -245,7 +283,7 @@ def main():
         for i, package in enumerate(args.single):
             data = research_package(package)
             print(RESOURCE_TEMPLATE.render(resource=data))
-            if i != len(args.single)-1:
+            if i != len(args.single) - 1:
                 print()
     else:
         package = args.resources or args.package
