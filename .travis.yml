@@ -5,20 +5,14 @@ branches:
     only:
     - master
     - /^v\d.*/
-env:
-- TOXENV=py2 BREW_PYTHON=python@2 PYTHON=python2
-- TOXENV=py-flake8 BREW_PYTHON=python@2 PYTHON=python2
-- TOXENV=py3 BREW_PYTHON=python PYTHON=python3
-
-before_install:
-- brew update
-- brew config
-- brew doctor
+addons:
+  homebrew:
+    packages:
+      - python
+      - python@2
+    update: true
 install:
-- brew ls $PYTHON || brew install $BREW_PYTHON
-- $PYTHON -m pip install tox coverage coveralls
-- if [ $PYTHON == "python2" ]; then ln -fs /usr/local/bin/python2 /usr/local/bin/python; ln -fs /usr/local/bin/pip2 /usr/local/bin/pip; fi
-- sudo mkdir -p /usr/local/man && sudo chown $USER /usr/local/man
+  - python3 -m pip install tox coverage coveralls
 before_script:
 - umask 0022
 script:
