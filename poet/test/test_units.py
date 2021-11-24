@@ -11,7 +11,7 @@ class TestPoet(object):
     def test_research_non_canonical_version(self):
         poet.research_package("functools32", "3.2.3.post2")
 
-    @mock.patch('codecs.getreader')
+    @mock.patch("codecs.getreader")
     def test_research_downloads_if_necessary(self, mock_getreader):
         mock_getreader.return_value = mock.mock_open(read_data=old_style_pypi_json)
         with LogCapture() as l:

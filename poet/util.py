@@ -4,8 +4,8 @@ def dash_to_studly(s):
     delims = "-_"
     for i, c in enumerate(l):
         if c in delims:
-            if (i+1) < len(l):
-                l[i+1] = l[i+1].upper()
+            if (i + 1) < len(l):
+                l[i + 1] = l[i + 1].upper()
     out = "".join(l)
     for d in delims:
         out = out.replace(d, "")
