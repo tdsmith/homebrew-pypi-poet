@@ -5,6 +5,7 @@ branches:
     only:
     - master
     - /^v\d.*/
+    - black
 addons:
   homebrew:
     packages:
