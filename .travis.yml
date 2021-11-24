@@ -13,7 +13,7 @@ addons:
       - python@2
     update: true
 install:
-  - python3 -m pip install tox coverage coveralls
+  - python3 -m pip install tox coverage coveralls flake8
 before_script:
 - umask 0022
 script:
@@ -31,4 +31,3 @@ deploy:
   on:
     tags: true
     repo: tdsmith/homebrew-pypi-poet
-    condition: $TOXENV = py2

@@ -2,6 +2,15 @@
 
 import subprocess
 import sys
+import os
+import shutil
+
+try:
+    from pathlib import Path
+except ImportError:
+    from pathlib2 import Path  # python 2 backport
+
+import pytest
 
 
 def poet(*args):
@@ -21,10 +30,13 @@ def test_single():
 def test_formula():
     result = poet("-f", "pytest")
     assert b'resource "py" do' in result
-    if sys.version_info.major == 2:
-        assert b'depends_on "python"' in result
-    else:
-        assert b'depends_on "python3"' in result
+    print(result)
+    assert (
+        'depends_on "python@{}.{}'.format(
+            sys.version_info.major, sys.version_info.minor
+        ).encode("utf-8")
+        in result
+    )
 
 
 def test_case_sensitivity():
@@ -44,15 +56,29 @@ def test_uses_sha256_from_json(monkeypatch):
     assert b"Using provided checksum for py\n" in result
 
 
-def test_audit(tmpdir):
-    home = tmpdir.chdir()
+@pytest.mark.skipif(sys.version_info.major < 3, reason="Python@2 no longer supported in brew")
+def test_audit():
+    """https://github.com/Homebrew/discussions/discussions/2531"""
+    env = os.environ.get("TOX_ENV_NAME", "poet-test")
+    repository = (
+        subprocess.check_output(
+            [
+                "brew",
+                "--repository",
+                "homebrew-poet/{}".format(env),
+            ]
+        )
+        .decode("utf-8")
+        .strip()
+    )
+    repository_path = Path(repository, "Formula")
+    repository_path.mkdir(exist_ok=True, parents=True)
     try:
-        with open("pytest.rb", "wb") as f:
+        with open(str(Path(repository_path, "pytest.rb")), "wb") as f:
             subprocess.check_call(["poet", "-f", "pytest"], stdout=f)
-        subprocess.check_call(["brew", "audit", "--strict", "./pytest.rb"])
+        subprocess.check_call(["brew", "audit", "--strict", "pytest"])
     finally:
-        tmpdir.join("pytest.rb").remove(ignore_errors=True)
-        home.chdir()
+        shutil.rmtree(repository)
 
 
 def test_lint(tmpdir):

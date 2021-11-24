@@ -176,7 +176,9 @@ def formula_for(package, also=None):
             "Could not find package {} in nodes {}".format(package, nodes.keys())
         )
 
-    python = "python" if sys.version_info.major == 2 else "python3"
+    python = "python@{major}.{minor}".format(
+        major=sys.version_info.major, minor=sys.version_info.minor
+    )
     return FORMULA_TEMPLATE.render(
         package=root,
         resources=resources,

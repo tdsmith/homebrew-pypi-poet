@@ -12,11 +12,6 @@ env.filters["dash_to_studly"] = dash_to_studly
 FORMULA_TEMPLATE = env.from_string(
     dedent(
         """\
-    # typed: false
-
-    # frozen_string_literal: true
-
-    # Homebrew Formula for installing {{ package.name|dash_to_studly }}
     class {{ package.name|dash_to_studly }} < Formula
       include Language::Python::Virtualenv
 
