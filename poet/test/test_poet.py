@@ -5,9 +5,7 @@ import sys
 
 
 def poet(*args):
-    return subprocess.check_output(
-        ["poet"] + list(args),
-        stderr=subprocess.STDOUT)
+    return subprocess.check_output(["poet"] + list(args), stderr=subprocess.STDOUT)
 
 
 def test_version():
@@ -37,7 +35,7 @@ def test_resources():
     result = poet("pytest")
     assert b'resource "py" do' in result
     result = poet("py.test")
-    assert b'PackageNotInstalledWarning' in result
+    assert b"PackageNotInstalledWarning" in result
 
 
 def test_uses_sha256_from_json(monkeypatch):

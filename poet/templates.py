@@ -9,7 +9,9 @@ env = Environment(trim_blocks=True)
 env.filters["dash_to_studly"] = dash_to_studly
 
 
-FORMULA_TEMPLATE = env.from_string(dedent("""\
+FORMULA_TEMPLATE = env.from_string(
+    dedent(
+        """\
     class {{ package.name|dash_to_studly }} < Formula
       include Language::Python::Virtualenv
 
@@ -38,12 +40,16 @@ FORMULA_TEMPLATE = env.from_string(dedent("""\
         false
       end
     end
-    """))
+    """
+    )
+)
 
 
-RESOURCE_TEMPLATE = env.from_string("""\
+RESOURCE_TEMPLATE = env.from_string(
+    """\
   resource "{{ resource.name }}" do
     url "{{ resource.url }}"
     {{ resource.checksum_type }} "{{ resource.checksum }}"
   end
-""")
+"""
+)
