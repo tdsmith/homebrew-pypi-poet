@@ -12,6 +12,8 @@ env:
 
 before_install:
 - brew update
+- brew config
+- brew doctor
 install:
 - brew ls $PYTHON || brew install $BREW_PYTHON
 - $PYTHON -m pip install tox coverage coveralls
