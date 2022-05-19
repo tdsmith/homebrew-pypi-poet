@@ -14,11 +14,15 @@ import codecs
 from collections import OrderedDict
 from contextlib import closing
 from hashlib import sha256
+import importlib_metadata
+import importlib
 import json
 import logging
 import os
+from re import I
 import sys
 import warnings
+from dataclasses import dataclass
 
 import pkg_resources
 
@@ -76,10 +80,29 @@ def recursive_dependencies(package):
     return sorted(discovered)
 
 
-def research_package(name, version=None):
-    with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
-        reader = codecs.getreader("utf-8")
-        pkg_data = json.load(reader(f))
+@dataclass
+class PackageMetadata:
+    name: str
+    homepage: str
+    url: str
+    checksum: str
+    checksum_type: str
+
+def research_package(name: str, version=None) -> PackageMetadata:
+    """
+    Return metadata about a package.
+    Given a package name, return a dictionary of metadata about that package.
+
+    Args:
+        name (str): The name of the package to look up.
+        version (str): The version of the package to look up.
+    
+    Returns:
+        PackageMetadata: A dictionary of metadata about the package.
+        
+    """
+    pkg_data = importlib.import_module(name)
+
     d = {}
     d['name'] = pkg_data['info']['name']
     d['homepage'] = pkg_data['info'].get('home_page', '')
@@ -257,4 +280,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    research_package('pip')
