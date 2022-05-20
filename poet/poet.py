@@ -191,7 +191,7 @@ def research_package(name: str, version=None) -> PackageMetadata:
     if pip_source_dir:
         if not os.path.exists(pip_source_dir):
             raise PipSourceMetadataException("PIP_SOURCE_DIR does not exist: {}".format(pip_source_dir))
-        pip_source_file = Path(pip_source_dir)/"{}.tar.gz".format(name.lower())    
+        pip_source_file = Path(pip_source_dir)/"{}-{}.tar.gz".format(name.lower(), version)    
         return get_metadata_from_pip_source(pip_source_file)
 
     with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
