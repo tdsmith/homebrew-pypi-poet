@@ -361,5 +361,5 @@ def main():
 
 
 if __name__ == '__main__':
-    research_package('pip')
+    sys.exit(main())
 
