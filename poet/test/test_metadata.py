@@ -1,0 +1,4 @@
+from poet.poet import get_checksum_from_pip_source_file, get_download_url_from_pip_source_file, get_metadata_from_pip_source
+
+
+def test_get_checksum_from_pip_source_file():

@@ -10,7 +10,6 @@ spits out Homebrew resource stanzas.
 
 from __future__ import print_function
 import argparse
-from asyncio import subprocess
 import codecs
 from collections import OrderedDict
 from contextlib import closing
@@ -21,6 +20,7 @@ import json
 import logging
 import os
 import shlex
+import subprocess
 import sys
 import warnings
 from dataclasses import dataclass
@@ -85,6 +85,8 @@ def recursive_dependencies(package):
     return sorted(discovered)
 
 
+class MetadataCollectionException(Exception):
+    pass
 @dataclass
 class PackageMetadata:
     name: str
@@ -92,7 +94,6 @@ class PackageMetadata:
     url: str
     checksum: str
     checksum_type: str
-
 
 def get_download_url_from_pip_source_file(module: str, pip_source_file: Path, output_dir=os.getenv("PIP_SOURCE_DIR")) -> str:
     """
@@ -110,11 +111,15 @@ def get_download_url_from_pip_source_file(module: str, pip_source_file: Path, ou
     """
     try:
         output = subprocess.run(shlex.split(f"pip download --dest {output_dir} --no-binary :all: --no-deps {module}"), capture_output=True, text=True)
+    except subprocess.CalledProcessError as cpe:
+        raise MetadataCollectionException(f"Could not download {module} from pip source file: {cpe.stderr}")
+    
+    try:
         extractor = URLExtract()
         urls = extractor.find_urls(output.stdout)
         return [url for url in urls if pip_source_file.name in url][0]
     except Exception as e:
-        raise Exception(f"Could not get download URL from pip source file: {e}")
+        raise MetadataCollectionException(f"Could not get download URL from pip source file: {e}") from e
 
 def get_checksum_from_pip_source_file(pip_source_file: Path) -> str:
     """Given the path to a pip source file, return the files checksum.
@@ -126,7 +131,7 @@ def get_checksum_from_pip_source_file(pip_source_file: Path) -> str:
         str: The checksum of the pip source file.
     """
     if not pip_source_file.exists():
-        raise Exception("File does not exist: %s" % pip_source_file)
+        raise MetadataCollectionException("File does not exist: %s" % pip_source_file)
     
     return sha256(pip_source_file.read_bytes()).hexdigest()
 
@@ -141,12 +146,12 @@ def get_metadata_from_pip_source(package_name: str, pip_source_file: Path) -> Pa
         PackageMetadata: A dictionary of metadata about the package required for the resource stanza.
     """
     if not pip_source_file.exists():
-        raise Exception("File does not exist: %s" % pip_source_file)
+        raise MetadataCollectionException("File does not exist: %s" % pip_source_file)
     
     try:
         metadata_object = metadata(pip_source_file)
     except Exception as e:
-        raise Exception("Could not get metadata from pip source file: %s" % e)
+        raise MetadataCollectionException("Could not get metadata from pip source file: %s" % e)
 
     return PackageMetadata(
         name=metadata_object.get("Name"),
