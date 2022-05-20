@@ -85,8 +85,9 @@ def recursive_dependencies(package):
     return sorted(discovered)
 
 
-class MetadataCollectionException(Exception):
+class PipSourceMetadataException(Exception):
     pass
+
 @dataclass
 class PackageMetadata:
     name: str
@@ -112,14 +113,14 @@ def get_download_url_from_pip_source_file(module: str, pip_source_file: Path, ou
     try:
         output = subprocess.run(shlex.split(f"pip download --dest {output_dir} --no-binary :all: --no-deps {module}"), capture_output=True, text=True)
     except subprocess.CalledProcessError as cpe:
-        raise MetadataCollectionException(f"Could not download {module} from pip source file: {cpe.stderr}")
+        raise PipSourceMetadataException(f"Could not download {module} from pip source file: {cpe.stderr}")
     
     try:
         extractor = URLExtract()
         urls = extractor.find_urls(output.stdout)
         return [url for url in urls if pip_source_file.name in url][0]
     except Exception as e:
-        raise MetadataCollectionException(f"Could not get download URL from pip source file: {e}") from e
+        raise PipSourceMetadataException(f"Could not get download URL from pip source file: {e}") from e
 
 def get_checksum_from_pip_source_file(pip_source_file: Path) -> str:
     """Given the path to a pip source file, return the files checksum.
@@ -131,7 +132,7 @@ def get_checksum_from_pip_source_file(pip_source_file: Path) -> str:
         str: The checksum of the pip source file.
     """
     if not pip_source_file.exists():
-        raise MetadataCollectionException("File does not exist: %s" % pip_source_file)
+        raise PipSourceMetadataException("File does not exist: %s" % pip_source_file)
     
     return sha256(pip_source_file.read_bytes()).hexdigest()
 
@@ -146,12 +147,12 @@ def get_metadata_from_pip_source(package_name: str, pip_source_file: Path) -> Pa
         PackageMetadata: A dictionary of metadata about the package required for the resource stanza.
     """
     if not pip_source_file.exists():
-        raise MetadataCollectionException("File does not exist: %s" % pip_source_file)
+        raise PipSourceMetadataException("File does not exist: %s" % pip_source_file)
     
     try:
         metadata_object = metadata(pip_source_file)
     except Exception as e:
-        raise MetadataCollectionException("Could not get metadata from pip source file: %s" % e)
+        raise PipSourceMetadataException("Could not get metadata from pip source file: %s" % e)
 
     return PackageMetadata(
         name=metadata_object.get("Name"),
@@ -176,7 +177,7 @@ def research_package(name: str, version=None) -> PackageMetadata:
     pip_source_dir = os.getenv("PIP_SOURCE_DIR")
     if pip_source_dir:
         if not os.path.exists(pip_source_dir):
-            raise Exception("PIP_SOURCE_DIR does not exist: {}".format(pip_source_dir))
+            raise PipSourceMetadataException("PIP_SOURCE_DIR does not exist: {}".format(pip_source_dir))
         pip_source_file = Path(pip_source_dir)/"{}.tar.gz".format(name.lower())    
         return get_metadata_from_pip_source(name, pip_source_file)
 
