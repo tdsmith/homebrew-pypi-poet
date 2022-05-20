@@ -122,7 +122,8 @@ def get_download_url_from_pip_source_file(module: str, pip_source_file: Path, ou
         str: The download URL for the pip source distribution.
     """
 
-    output_dir = output_dir if output_dir != None else Path(os.getenv("PIP_SOURCE_DIR"))
+    if not output_dir.is_dir():
+        output_dir = Path(os.getenv("PIP_SOURCE_DIR"))
     try:
         output = subprocess.run(shlex.split(f"pip download --dest {output_dir} --no-binary :all: --no-deps {module}"), capture_output=True, text=True)
     except subprocess.CalledProcessError as cpe:
