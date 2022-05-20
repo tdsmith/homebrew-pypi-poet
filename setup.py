@@ -12,7 +12,6 @@ setup(
     author='Tim D. Smith',
     author_email='poet@tim-smith.us',
     description='Writes Homebrew stanzas for pypi packages',
-    extras_require={"dev": ["pytest", "pytest-mock"]},
     packages=['poet'],
     platforms='any',
     classifiers=[
