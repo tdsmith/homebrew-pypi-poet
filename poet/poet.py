@@ -14,18 +14,18 @@ import codecs
 from collections import OrderedDict
 from contextlib import closing
 from hashlib import sha256
-import importlib_metadata
+
 import importlib
 import json
 import logging
 import os
-from re import I
 import sys
 import warnings
 from dataclasses import dataclass
 
 import pkg_resources
 
+from pathlib import Path
 from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE
 from .version import __version__
 
@@ -88,6 +88,22 @@ class PackageMetadata:
     checksum: str
     checksum_type: str
 
+def get_metadata_from_pip_source_file(pip_source_file: Path) -> PackageMetadata:
+    """Given the path to a pip source file, return a PackageMetadata object.
+
+    Args:
+        pip_source_file (Path): The path to a .tar.gz file containing a pip source distribution.
+
+    Returns:
+        PackageMetadata: A dictionary of metadata about the package required for the resource stanza.
+    """
+    if not pip_source_file.exists():
+        raise Exception("File does not exist: %s" % pip_source_file)
+
+    with pip_source_file.open() as f:
+        return json.load(f)
+
+
 def research_package(name: str, version=None) -> PackageMetadata:
     """
     Return metadata about a package.
@@ -101,7 +117,22 @@ def research_package(name: str, version=None) -> PackageMetadata:
         PackageMetadata: A dictionary of metadata about the package.
         
     """
-    pkg_data = importlib.import_module(name)
+
+    if os.getenv("PIP_SOURCE_DIR"):
+        pip_source_dir = os.getenv("PIP_SOURCE_DIR")
+        if not os.path.exists(pip_source_dir):
+            raise Exception("PIP_SOURCE_DIR does not exist: {}".format(pip_source_dir))
+        pip_source_file = Path(pip_source_dir)/"{}.tar.gz".format(name.lower())    
+        return get_metadata_from_pip_source_file(pip_source_file)
+
+
+
+
+
+
+    with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
+        reader = codecs.getreader("utf-8")
+        pkg_data = json.load(reader(f))
 
     d = {}
     d['name'] = pkg_data['info']['name']
