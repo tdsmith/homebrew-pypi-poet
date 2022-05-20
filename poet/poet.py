@@ -94,7 +94,7 @@ class PackageMetadata:
     homepage: str
     url: str
     checksum: str
-    checksum_type: str
+    checksum_type: str = "sha256"
 
 def get_download_url_from_pip_source_file(module: str, pip_source_file: Path, output_dir=os.getenv("PIP_SOURCE_DIR")) -> str:
     """
