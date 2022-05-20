@@ -1,6 +1,6 @@
 from __future__ import absolute_import, print_function
 
-from unittest import mock
+import mock
 
 import poet
 from poet_fixtures import old_style_pypi_json
