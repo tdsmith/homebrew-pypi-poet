@@ -23,7 +23,7 @@ import shlex
 import subprocess
 import sys
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 from urlextract import URLExtract
