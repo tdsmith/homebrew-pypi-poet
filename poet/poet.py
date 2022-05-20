@@ -117,7 +117,7 @@ def get_download_url_from_pip_source_file(module: str, pip_source_file: Path, ou
         raise Exception(f"Could not get download URL from pip source file: {e}")
 
 def get_checksum_from_pip_source_file(pip_source_file: Path) -> str:
-    """Given the path to a pip source file, return a checksum.
+    """Given the path to a pip source file, return the files checksum.
 
     Args:
         pip_source_file (Path): The path to a .tar.gz file containing a pip source distribution.
@@ -156,7 +156,6 @@ def get_metadata_from_pip_source(package_name: str, pip_source_file: Path) -> Pa
         checksum_type="sha256"
     )
 
-
 def research_package(name: str, version=None) -> PackageMetadata:
     """
     Return metadata about a package.
@@ -174,7 +173,7 @@ def research_package(name: str, version=None) -> PackageMetadata:
         if not os.path.exists(pip_source_dir):
             raise Exception("PIP_SOURCE_DIR does not exist: {}".format(pip_source_dir))
         pip_source_file = Path(pip_source_dir)/"{}.tar.gz".format(name.lower())    
-        return get_metadata_from_pip_source(pip_source_file)
+        return get_metadata_from_pip_source(name, pip_source_file)
 
     with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
         reader = codecs.getreader("utf-8")
@@ -358,3 +357,4 @@ def main():
 
 if __name__ == '__main__':
     research_package('pip')
+
