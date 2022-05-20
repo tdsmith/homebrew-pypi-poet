@@ -94,7 +94,7 @@ class PackageMetadata:
     homepage: str
     url: str
     checksum: str
-    checksum_type: str = "sha256"
+    checksum_type: str = field(default="sha256", init=False)
 
     def __getitem__(self, idx):
         try:
