@@ -16,6 +16,7 @@ from contextlib import closing
 from hashlib import sha256
 
 import importlib
+from importlib.metadata import metadata
 import json
 import logging
 import os
@@ -88,6 +89,22 @@ class PackageMetadata:
     checksum: str
     checksum_type: str
 
+
+def get_checksum_from_pip_source_file(pip_source_file: Path) -> str:
+    """Given the path to a pip source file, return a checksum.
+
+    Args:
+        pip_source_file (Path): The path to a .tar.gz file containing a pip source distribution.
+
+    Returns:
+        str: The checksum of the pip source file.
+    """
+    if not pip_source_file.exists():
+        raise Exception("File does not exist: %s" % pip_source_file)
+    
+    return sha256(pip_source_file.read_bytes()).hexdigest()
+
+
 def get_metadata_from_pip_source_file(pip_source_file: Path) -> PackageMetadata:
     """Given the path to a pip source file, return a PackageMetadata object.
 
@@ -99,9 +116,19 @@ def get_metadata_from_pip_source_file(pip_source_file: Path) -> PackageMetadata:
     """
     if not pip_source_file.exists():
         raise Exception("File does not exist: %s" % pip_source_file)
-
-    with pip_source_file.open() as f:
-        return json.load(f)
+    
+    try:
+        metadata_object = metadata(pip_source_file)
+    except Exception as e:
+        raise Exception("Could not get metadata from pip source file: %s" % e)
+        
+    return PackageMetadata(
+        name=metadata_object["name"],
+        homepage=metadata_object["home-page"],
+        url=metadata_object["download-url"],
+        checksum=get_checksum_from_pip_source_file(pip_source_file),
+        checksum_type="sha256"
+    )
 
 
 def research_package(name: str, version=None) -> PackageMetadata:
@@ -124,11 +151,6 @@ def research_package(name: str, version=None) -> PackageMetadata:
             raise Exception("PIP_SOURCE_DIR does not exist: {}".format(pip_source_dir))
         pip_source_file = Path(pip_source_dir)/"{}.tar.gz".format(name.lower())    
         return get_metadata_from_pip_source_file(pip_source_file)
-
-
-
-
-
 
     with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
         reader = codecs.getreader("utf-8")
