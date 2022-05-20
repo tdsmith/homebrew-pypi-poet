@@ -96,20 +96,33 @@ class PackageMetadata:
     checksum: str
     checksum_type: str = "sha256"
 
-def get_download_url_from_pip_source_file(module: str, pip_source_file: Path, output_dir=os.getenv("PIP_SOURCE_DIR")) -> str:
+    def __getitem__(self, idx):
+        try:
+            return getattr(self, idx)
+        except AttributeError as err:
+            raise KeyError(idx) from err
+
+    def __setitem__(self, idx, val):
+        setattr(self, idx, val)
+
+
+
+def get_download_url_from_pip_source_file(module: str, pip_source_file: Path, output_dir: Path) -> str:
     """
     Returns the download URL for the pip source distribution.
     This method will download the pip package from the source distribution. 
 
     The standard out of this command contains an obfuscated URL and a regular URL that points to a .tar.gz file.
 
-    Args:
+    Arguments:
         module (str): The name of the module to download.
         output_dir (str): The directory to download the module to.
 
     Returns:
         str: The download URL for the pip source distribution.
     """
+
+    output_dir = output_dir if output_dir != None else Path(os.getenv("PIP_SOURCE_DIR"))
     try:
         output = subprocess.run(shlex.split(f"pip download --dest {output_dir} --no-binary :all: --no-deps {module}"), capture_output=True, text=True)
     except subprocess.CalledProcessError as cpe:
@@ -134,10 +147,10 @@ def get_checksum_from_pip_source_file(pip_source_file: Path) -> str:
     if not pip_source_file.exists():
         raise PipSourceMetadataException("File does not exist: %s" % pip_source_file)
     
-    return sha256(pip_source_file.read_bytes()).hexdigest()
+    return sha256(pip_source_file.read_bytes(), init=False).hexdigest()
 
 
-def get_metadata_from_pip_source(package_name: str, pip_source_file: Path) -> PackageMetadata:
+def get_metadata_from_pip_source(pip_source_file: Path) -> PackageMetadata:
     """Given the path to a pip source file, return a PackageMetadata object.
 
     Args:
@@ -157,9 +170,8 @@ def get_metadata_from_pip_source(package_name: str, pip_source_file: Path) -> Pa
     return PackageMetadata(
         name=metadata_object.get("Name"),
         homepage=metadata_object.get("Home-page"),
-        url=get_download_url_from_pip_source_file(package_name, pip_source_file),
-        checksum=get_checksum_from_pip_source_file(pip_source_file),
-        checksum_type="sha256"
+        url=get_download_url_from_pip_source_file(metadata_object.get("Name"), pip_source_file),
+        checksum=get_checksum_from_pip_source_file(pip_source_file)
     )
 
 def research_package(name: str, version=None) -> PackageMetadata:
@@ -179,7 +191,7 @@ def research_package(name: str, version=None) -> PackageMetadata:
         if not os.path.exists(pip_source_dir):
             raise PipSourceMetadataException("PIP_SOURCE_DIR does not exist: {}".format(pip_source_dir))
         pip_source_file = Path(pip_source_dir)/"{}.tar.gz".format(name.lower())    
-        return get_metadata_from_pip_source(name, pip_source_file)
+        return get_metadata_from_pip_source(pip_source_file)
 
     with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
         reader = codecs.getreader("utf-8")
