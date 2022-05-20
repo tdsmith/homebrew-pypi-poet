@@ -148,7 +148,7 @@ def get_checksum_from_pip_source_file(pip_source_file: Path) -> str:
     if not pip_source_file.exists():
         raise PipSourceMetadataException("File does not exist: %s" % pip_source_file)
     
-    return sha256(pip_source_file.read_bytes(), init=False).hexdigest()
+    return sha256(pip_source_file.read_bytes()).hexdigest()
 
 
 def get_metadata_from_pip_source(pip_source_file: Path) -> PackageMetadata:
