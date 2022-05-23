@@ -187,8 +187,8 @@ def research_package(name: str, version=None) -> PackageMetadata:
     Returns:
         PackageMetadata: A dictionary of metadata about the package.  
     """
-    pip_source_dir = os.getenv("PIP_SOURCE_DIR")
-    if pip_source_dir:
+    pip_source_dir = Path(os.getenv("PIP_SOURCE_DIR"))
+    if pip_source_dir.is_dir():
         if not os.path.exists(pip_source_dir):
             raise PipSourceMetadataException("PIP_SOURCE_DIR does not exist: {}".format(pip_source_dir))
         pip_source_file = Path(pip_source_dir)/"{}-{}.tar.gz".format(name.lower(), version)    
