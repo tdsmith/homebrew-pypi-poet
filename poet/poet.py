@@ -128,7 +128,7 @@ class PackageMetadata:
         
         self.checksum = sha256(self.source_file.read_bytes()).hexdigest()
    
-    def get_download_url(self) -> str:
+    def get_download_url(self):
         """
         Returns the download URL for the pip source distribution.
         This method will download the pip package from the source distribution. 
