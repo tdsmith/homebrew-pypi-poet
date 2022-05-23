@@ -110,7 +110,7 @@ class PackageMetadata:
         setattr(self, idx, val)
 
     
-    def get_checksums(self) -> str:
+    def get_checksums(self):
         """Given the path to a pip source file, return the files checksum.
 
         Args:
