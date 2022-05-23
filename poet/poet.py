@@ -155,7 +155,7 @@ class PackageMetadata:
         except Exception as e:
             raise PipSourceMetadataException(f"Could not get download URL from pip source file: {e}") from e
         
-    def get_homepage(self) -> str:
+    def get_homepage(self):
         """Get the homepage from the pip source distribution.
 
         Args:
