@@ -24,7 +24,9 @@ import subprocess
 import sys
 import warnings
 from dataclasses import dataclass, field
+from typing import Optional
 
+from packaging.version import Version, parse, InvalidVersion
 
 from urlextract import URLExtract
 
@@ -91,10 +93,16 @@ class PipSourceMetadataException(Exception):
 @dataclass
 class PackageMetadata:
     name: str
-    homepage: str
-    url: str
-    checksum: str
+    homepage: str = field(optional=True)
+    download_url: Optional[str] = None
+    checksum: Optional[str] = None
     checksum_type: str = field(default="sha256", init=False)
+    source_file: Optional[Path] = None
+    version: Optional[Version] = None
+    
+    def asdict(self):
+        exclude_keys = ["version"]
+        return dict(filter(lambda x: x[0] not in exclude_keys, super().asdict()))
 
     def __getitem__(self, idx):
         try:
@@ -105,75 +113,62 @@ class PackageMetadata:
     def __setitem__(self, idx, val):
         setattr(self, idx, val)
 
-
-
-def get_download_url_from_pip_source_file(module: str, pip_source_file: Path, output_dir: Path) -> str:
-    """
-    Returns the download URL for the pip source distribution.
-    This method will download the pip package from the source distribution. 
-
-    The standard out of this command contains an obfuscated URL and a regular URL that points to a .tar.gz file.
-
-    Arguments:
-        module (str): The name of the module to download.
-        output_dir (str): The directory to download the module to.
-
-    Returns:
-        str: The download URL for the pip source distribution.
-    """
-
-    if not output_dir.is_dir():
-        output_dir = Path(os.getenv("PIP_SOURCE_DIR"))
-    try:
-        output = subprocess.run(shlex.split(f"pip download --dest {output_dir} --no-binary :all: --no-deps {module}"), capture_output=True, text=True)
-    except subprocess.CalledProcessError as cpe:
-        raise PipSourceMetadataException(f"Could not download {module} from pip source file: {cpe.stderr}")
     
-    try:
-        extractor = URLExtract()
-        urls = extractor.find_urls(output.stdout)
-        return [url for url in urls if pip_source_file.name in url][0]
-    except Exception as e:
-        raise PipSourceMetadataException(f"Could not get download URL from pip source file: {e}") from e
+    def get_checksums(self):
+        """Given the path to a pip source file, return the files checksum.
 
-def get_checksum_from_pip_source_file(pip_source_file: Path) -> str:
-    """Given the path to a pip source file, return the files checksum.
+        Args:
+            pip_source_file (Path): The path to a .tar.gz file containing a pip source distribution.
 
-    Args:
-        pip_source_file (Path): The path to a .tar.gz file containing a pip source distribution.
+        Returns:
+            str: The checksum of the pip source file.
+        """
+        if not self.source_file.exists():
+            raise PipSourceMetadataException("File does not exist: %s" % self.source_file)
+        
+        self.checksum = sha256(self.source_file.read_bytes()).hexdigest()
+   
+    def get_download_url(self):
+        """
+        Returns the download URL for the pip source distribution.
+        This method will download the pip package from the source distribution. 
 
-    Returns:
-        str: The checksum of the pip source file.
-    """
-    if not pip_source_file.exists():
-        raise PipSourceMetadataException("File does not exist: %s" % pip_source_file)
-    
-    return sha256(pip_source_file.read_bytes()).hexdigest()
+        The standard out of this command contains an obfuscated URL and a regular URL that points to a .tar.gz file.
 
+        Arguments:
+            module (str): The name of the module to download.
+            output_dir (str): The directory to download the module to.
 
-def get_metadata_from_pip_source(pip_source_file: Path) -> PackageMetadata:
-    """Given the path to a pip source file, return a PackageMetadata object.
+        Returns:
+            str: The download URL for the pip source distribution.
+        """
+        
+        try:
+            output = subprocess.run(shlex.split(f"pip3 download --dest {output_dir} --no-binary :all: --no-deps {self.name}"), capture_output=True, text=True)
+        except subprocess.CalledProcessError as cpe:
+            raise PipSourceMetadataException(f"Could not download {self.name} from pip source file: {cpe.stderr}")
+        
+        try:
+            extractor = URLExtract()
+            urls = extractor.find_urls(output.stdout)
+            self.url = next(filter(lambda url: self.name in url, urls))
+        except Exception as e:
+            raise PipSourceMetadataException(f"Could not get download URL from pip source file: {e}") from e
+        
+    def get_homepage(self):
+        """Get the homepage from the pip source distribution.
 
-    Args:
-        pip_source_file (Path): The path to a .tar.gz file containing a pip source distribution.
+        Args:
+            value (str): The value to get from metadata/
 
-    Returns:
-        PackageMetadata: A dictionary of metadata about the package required for the resource stanza.
-    """
-    if not pip_source_file.exists():
-        raise PipSourceMetadataException("File does not exist: %s" % pip_source_file)
-    
-    try:
-        metadata_object = metadata(pip_source_file)
-    except Exception as e:
-        raise PipSourceMetadataException("Could not get metadata from pip source file: %s" % e)
+        Returns:
+            PackageMetadata: A dictionary of metadata about the package required for the resource stanza.
+        """
+        try:
+            self.homepage =  metadata(self.name).get("Home-page")
+        except Exception as e:
+            raise PipSourceMetadataException("Could not get metadata from pip source file: %s" % e)
 
-    return PackageMetadata(
-        name=metadata_object.get("Name"),
-        homepage=metadata_object.get("Home-page"),
-        url=get_download_url_from_pip_source_file(metadata_object.get("Name"), pip_source_file),
-        checksum=get_checksum_from_pip_source_file(pip_source_file)
-    )
 
 def research_package(name: str, version=None) -> PackageMetadata:
     """
@@ -187,12 +182,23 @@ def research_package(name: str, version=None) -> PackageMetadata:
     Returns:
         PackageMetadata: A dictionary of metadata about the package.  
     """
-    pip_source_dir = os.getenv("PIP_SOURCE_DIR")
-    if pip_source_dir:
-        if not os.path.exists(pip_source_dir):
-            raise PipSourceMetadataException("PIP_SOURCE_DIR does not exist: {}".format(pip_source_dir))
-        pip_source_file = Path(pip_source_dir)/"{}.tar.gz".format(name.lower())    
-        return get_metadata_from_pip_source(pip_source_file)
+    try:
+        parsed_version = parse(version)
+    except InvalidVersion as invalid_version:
+        logging.warn("Invalid version: %s", invalid_version)
+        version = None
+
+    pip_source_dir = Path(os.getenv("PIP_SOURCE_DIR"))
+    if pip_source_dir.is_dir() and version:
+        pip_source_file = pip_source_dir/"{}-{}.tar.gz".format(name.lower(), str(version))
+        package_metadata = PackageMetadata(name=name, version=parsed_version, source_dir=pip_source_file)
+        package_metadata.get_homepage()
+        package_metadata.get_metadata()
+        package_metadata.get_checksums()
+        package_metadata.get_download_url()
+        return package_metadata
+
+
 
     with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
         reader = codecs.getreader("utf-8")
