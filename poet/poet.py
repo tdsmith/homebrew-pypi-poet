@@ -144,7 +144,7 @@ class PackageMetadata:
         """
         
         try:
-            output = subprocess.run(shlex.split(f"pip download --dest {output_dir} --no-binary :all: --no-deps {self.name}"), capture_output=True, text=True)
+            output = subprocess.run(shlex.split(f"pip3 download --dest {output_dir} --no-binary :all: --no-deps {self.name}"), capture_output=True, text=True)
         except subprocess.CalledProcessError as cpe:
             raise PipSourceMetadataException(f"Could not download {self.name} from pip source file: {cpe.stderr}")
         
