@@ -99,6 +99,10 @@ class PackageMetadata:
     checksum_type: str = field(default="sha256", init=False)
     source_file: Optional[Path] = None
     version: Optional[Version] = None
+    
+    def asdict(self):
+        exclude_keys = ["version"]
+        return dict(filter(lambda x: x[0] not in exclude_keys, super().asdict()))
 
     def __getitem__(self, idx):
         try:
