@@ -17,10 +17,8 @@ from hashlib import sha256
 
 from importlib.metadata import metadata
 import json
-from lib2to3.pgen2.token import OP
 import logging
 import os
-from re import S
 import shlex
 import subprocess
 import sys
