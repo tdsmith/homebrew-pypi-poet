@@ -147,7 +147,7 @@ class PackageMetadata:
         try:
             extractor = URLExtract()
             urls = extractor.find_urls(output.stdout)
-            self.url = [url for url in urls if self.name in url][0]
+            self.url = next(filter(lambda url: self.name in url, urls))
         except Exception as e:
             raise PipSourceMetadataException(f"Could not get download URL from pip source file: {e}") from e
         
