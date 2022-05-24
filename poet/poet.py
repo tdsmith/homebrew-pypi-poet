@@ -21,7 +21,7 @@ import json
 import logging
 import os
 import sys
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 import warnings
 from dataclasses import dataclass, field
 from typing import Optional
@@ -46,6 +46,9 @@ logging.basicConfig(level=int(os.environ.get("POET_DEBUG", 30)))
 
 
 class PackageNotInstalledWarning(UserWarning):
+    pass
+
+class PackageNotFoundWarning(UserWarning):
     pass
 
 
@@ -130,13 +133,24 @@ class CodeArtifactMetadata(PackageMetadata):
         Returns:
             str: The base URL for the pip source distribution.
         """
-        response = self.client.get_repository_endpoint(
-            domain=self.domain,
-            domainOwner=self.owner,
-            repository=self.repository,
-            format="pypi",
-        )
-        return response["repositoryEndpoint"]
+        try:
+            response = self.client.get_repository_endpoint(
+                domain=self.domain,
+                domainOwner=self.owner,
+                repository=self.repository,
+                format="pypi",
+            )
+        except botocore.exceptions.ClientError as client_error:
+            if client_error.response["Error"]["Code"] == "RepositoryNotFound":
+                raise PackageVersionNotFoundWarning(
+                    f"Package version {self.version} not found for {self.name}"
+                )
+            raise client_error
+        try:
+            return response["repositoryEndpoint"]
+        except KeyError as e:
+            logging.info("Could not find key {} in response".format(e))
+            return None
 
     def get_download_url(self) -> str:
         """Get the download URL for the pip source distribution.
@@ -145,7 +159,7 @@ class CodeArtifactMetadata(PackageMetadata):
             str: The download URL for the pip source distribution.
         """
         base_url = urlparse(f"{self.get_base_url()}simple/{self.package_name}/{self.version}/{self.name}-{self.version}.tar.gz")
-        return base_url.geturl()
+        return urlunparse(base_url)
 
     def get_checksum(self) -> str:
         """
@@ -198,15 +212,17 @@ class CodeArtifactMetadata(PackageMetadata):
                 package=self.package_name,
                 packageVersion=self.version,
             )
-        except Exception as e:
-            raise PipSourceMetadataException(
-                f"Could not get metadata for {self.name} {self.version}: {e}"
-            ) from e
+        except botocore.exceptions.ClientError as client_error:
+            if client_error.response["Error"]["Code"] == "PackageVersionNotFound":
+                raise PackageVersionNotFoundWarning(
+                    f"Package version {self.version} not found for {self.name}"
+                )
+            raise client_error
         
         try:
             return response["packageVersion"][key]
-        except KeyError:
-            logging.info("Could not find key {} in response".format(key))
+        except KeyError as key_error:
+            logging.info("Could not find key {} in response: {}".format(key, key_error))
             return None
 
     def get_latest_version(self) -> str:
@@ -225,12 +241,16 @@ class CodeArtifactMetadata(PackageMetadata):
                 status="Published",
                 sortBy="PUBLISHED_TIME",
             )
+        except botocore.exceptions.ClientError as client_error:
+            if client_error.response["Error"]["Code"] == "PackageNotFound":
+                raise PackageNotFoundWarning(f"Package {self.name} not found")
+            raise client_error
+        
+        try:
             return response["versions"][0]["version"]
-        except Exception as e:
-            raise PackageVersionNotFoundWarning(
-                f"Could not get latest version for {self.name}: {e}"
-            ) from e
-
+        except KeyError as key_error:
+            logging.info("Could not find latest version for {}. Error: {}".format(self.name, key_error))
+            return None
 
     
 def research_package(name: str, version=None) -> PackageMetadata:
