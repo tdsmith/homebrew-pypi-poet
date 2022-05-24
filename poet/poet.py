@@ -113,10 +113,10 @@ class PackageMetadata:
         self.domain = os.getenv("AWS_CODEARTIFACT_DOMAIN")
         self.owner = os.getenv("AWS_CODEARTIFACT_DOMAIN_OWNER")
         self.base_url = self.get_base_url()
-        self.download_url = self.get_base_url()
+        self.download_url = self.get_download_url()
         self.checksum = self.get_checksum()
-        self.checksum_type = "sha256"
-        self.url = f"{self.get_base_url()}{self.name}/{self.get_latest_version()}/{self.name}-{self.version}.tar.gz"
+        self.checksum_type = "SHA-256"
+        self.url = self.get_download_url()
         self.version = self.get_latest_version() if version is None else version
 
     def asdict(self):
@@ -139,7 +139,17 @@ class PackageMetadata:
         )
         return response["repositoryEndpoint"]
 
-    def get_checksum(self, hash_type="SHA256"):
+    def get_download_url(self):
+        """Get the download URL for the pip source distribution.
+
+        Returns:
+            str: The download URL for the pip source distribution.
+        """
+        version = self.get_latest_version() if self.version is None else self.version
+        base_url = self.get_base_url() if self.base_url is None else self.base_url
+        return f"{base_url}/{self.package_name}-{version}.tar.gz"
+
+    def get_checksum(self):
         """
         Get the checksum for the pip source distribution.
 
@@ -156,7 +166,7 @@ class PackageMetadata:
             packageVersion=self.get_latest_version(),
         )
         tar_ball = [asset for asset in response["assets"] if ".tar.gz" in asset["name"]][0]
-        return tar_ball["hashes"][hash_type]
+        return tar_ball["hashes"][self.checksum_type]
     
     def get_metadata(self, key: str) -> str:
         """Get the metadata from the pip source distribution.
