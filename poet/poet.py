@@ -30,7 +30,7 @@ from packaging.version import Version, parse, InvalidVersion
 import pkg_resources
 
 from pathlib import Path
-from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE
+from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE, PRIVATE_RESOURCE_TEMPLATE
 from .version import __version__
 
 try:
@@ -160,9 +160,11 @@ class PackageMetadata:
             package=self.package_name,
             packageVersion=self.get_latest_version(),
         )
-        tar_ball = [asset for asset in response["assets"] if ".tar.gz" in asset["name"]][0]
+        tar_ball = [
+            asset for asset in response["assets"] if ".tar.gz" in asset["name"]
+        ][0]
         return tar_ball["hashes"]["SHA-256"]
-    
+
     def get_metadata(self, key: str) -> str:
         """Get the metadata from the pip source distribution.
 
@@ -188,7 +190,7 @@ class PackageMetadata:
             raise PipSourceMetadataException(
                 f"Could not get metadata for {self.name} {self.version}"
             ) from e
-    
+
     def get_latest_version(self):
         """Get the latest version of the package.
 
@@ -204,14 +206,13 @@ class PackageMetadata:
                 format="pypi",
                 package=self.package_name,
                 status="Published",
-                sortBy="PUBLISHED_TIME"
+                sortBy="PUBLISHED_TIME",
             )
             return response["versions"][0]["version"]
         except Exception as e:
             raise PackageVersionNotFoundWarning(
                 f"Could not get latest version for {self.name}: {e}"
             ) from e
-
 
 
 def research_package(name: str, version=None) -> PackageMetadata:
@@ -243,10 +244,7 @@ def research_package(name: str, version=None) -> PackageMetadata:
 
     if code_artifact_repo:
         logging.warning("Using AWS CodeArtifact for package metadata")
-        package_metadata = PackageMetadata(
-            name=name,
-            version=version
-        )
+        package_metadata = PackageMetadata(name=name, version=version)
         return package_metadata.asdict()
     else:
         with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
@@ -358,10 +356,16 @@ def formula_for(package, also=None):
     )
 
 
-def resources_for(packages):
+def resources_for(packages, using=False):
     nodes = merge_graphs(make_graph(p) for p in packages)
-    return "\n\n".join(
-        [RESOURCE_TEMPLATE.render(resource=node) for node in nodes.values()]
+    return (
+        "\n\n".join(
+            [RESOURCE_TEMPLATE.render(resource=node) for node in nodes.values()]
+        )
+        if not using
+        else "\n\n".join(
+            [PRIVATE_RESOURCE_TEMPLATE.render(resource=node, using=using) for node in nodes.values()]
+        )
     )
 
 
@@ -424,6 +428,9 @@ def main():
     )
     parser.add_argument("package", help=argparse.SUPPRESS, nargs="?")
     parser.add_argument(
+        "--using", "-u", help="Set the strategy for the private repo urls"
+    )
+    parser.add_argument(
         "-V",
         "--version",
         action="version",
@@ -454,7 +461,13 @@ def main():
         if not package:
             parser.print_usage(sys.stderr)
             return 1
-        print(resources_for([package] + args.also))
+
+        breakpoint()
+        if args.using:
+            logging.warning("Using private repo urls: {}".format(args.using))
+            print(resources_for([package] + args.also))
+        else:
+            print(resources_for([package] + args.also))
     return 0
 
 

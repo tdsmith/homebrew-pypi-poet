@@ -47,3 +47,11 @@ RESOURCE_TEMPLATE = env.from_string("""\
     {{ resource.checksum_type }} "{{ resource.checksum }}"
   end
 """)
+
+
+PRIVATE_RESOURCE_TEMPLATE = env.from_string("""\
+  resource "{{ resource.name }}" do
+    url "{{ resource.url }}", :using {{ using }}
+    {{ resource.checksum_type }} "{{ resource.checksum }}"
+  end
+""")
