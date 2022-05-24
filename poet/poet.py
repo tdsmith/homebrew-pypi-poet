@@ -118,7 +118,7 @@ class PackageMetadata:
         self.download_url = self.get_base_url()
         self.checksum = self.get_checksum()
         self.checksum_type = "sha256"
-        self.url = f"{self.get_base_url()}{self.name}/{self.version}/{self.name}-{self.version}.tar.gz"
+        self.url = f"{self.get_base_url()}{self.name}/{self.get_latest_version()}/{self.name}-{self.version}.tar.gz"
         self.version = self.get_latest_version() if version is None else version
 
     def asdict(self):
