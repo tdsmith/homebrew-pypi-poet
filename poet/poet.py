@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import sys
+from urllib.parse import urlparse
 import warnings
 from dataclasses import dataclass, field
 from typing import Optional
@@ -114,10 +115,10 @@ class CodeArtifactMetadata(PackageMetadata):
     def __post_init__(self):
         # If the version is not specified, get the latest version
         super().__post_init__()
+        self.client = boto3.client("codeartifact")
         if self.version is None:
             self.version = self.get_latest_version()
         self.homepage = self.get_metadata("homePage")
-        self.client = boto3.client("codeartifact")
         self.base_url = self.get_base_url()
         self.checksum = self.get_checksum()
         self.url = self.get_download_url()
@@ -143,8 +144,8 @@ class CodeArtifactMetadata(PackageMetadata):
         Returns:
             str: The download URL for the pip source distribution.
         """
-        base_url = self.get_base_url()
-        return f"{base_url}simple/{self.package_name}/{self.version}/{self.name}-{self.version}.tar.gz"
+        base_url = urlparse(f"{self.get_base_url()}simple/{self.package_name}/{self.version}/{self.name}-{self.version}.tar.gz")
+        return base_url.geturl()
 
     def get_checksum(self) -> str:
         """
