@@ -15,22 +15,17 @@ from collections import OrderedDict
 from contextlib import closing
 from hashlib import sha256
 
-from importlib.metadata import metadata
-from pydoc import cli
 import boto3
 import json
 import logging
 import os
-import shlex
-import subprocess
 import sys
 import warnings
 from dataclasses import dataclass, field
-from typing import Optional, Type
+from typing import Optional
 
 from packaging.version import Version, parse, InvalidVersion
 
-from urlextract import URLExtract
 
 import pkg_resources
 
