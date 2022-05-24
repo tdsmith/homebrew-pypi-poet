@@ -265,14 +265,14 @@ def research_package(name: str, version=None) -> PackageMetadata:
     Returns:
         PackageMetadata: A dictionary of metadata about the package.
     """
-    try:
-        parse(version)
-    except TypeError as type_error:
-        logging.warning(f"Could not parse version {version}: {type_error}")
-        version = None
-    except InvalidVersion as invalid_version:
-        logging.warn("Invalid version: %s", invalid_version)
-        version = None
+    if version is None:
+        logging.warning(f"A version was not specified for {name}. Using latest version.")
+    else:
+        try:
+            parse(version)
+        except InvalidVersion as invalid_version:
+            logging.warn("Invalid version: %s", invalid_version)
+            version = None
 
     code_artifact_repo = os.getenv("AWS_CODEARTIFACT_REPOSITORY", None)
 

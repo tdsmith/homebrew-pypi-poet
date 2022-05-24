@@ -75,4 +75,4 @@ def test_camel_case():
 
 def test_using_value():
     result = poet("--using", "PRIVATE")
-    assert b"using: :PRIVATE" in result
+    assert b"using: PRIVATE" in result
