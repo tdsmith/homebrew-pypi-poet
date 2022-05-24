@@ -128,8 +128,7 @@ class CodeArtifactMetadata(PackageMetadata):
         Returns:
             str: The base URL for the pip source distribution.
         """
-        client = boto3.client("codeartifact")
-        response = client.get_repository_endpoint(
+        response = self.client.get_repository_endpoint(
             domain=self.domain,
             domainOwner=self.owner,
             repository=self.repository,
@@ -153,8 +152,7 @@ class CodeArtifactMetadata(PackageMetadata):
         Returns:
             str: The checksum for the pip source distribution.
         """
-        client = boto3.client("codeartifact")
-        response = client.list_package_version_assets(
+        response = self.client.list_package_version_assets(
             domain=self.domain,
             domainOwner=self.owner,
             repository=self.repository,
@@ -177,8 +175,7 @@ class CodeArtifactMetadata(PackageMetadata):
             str: The value of the key.
         """
         try:
-            client = boto3.client("codeartifact")
-            response = client.describe_package_version(
+            response = self.client.describe_package_version(
                 domain=self.domain,
                 domainOwner=self.owner,
                 repository=self.repository,
@@ -204,8 +201,7 @@ class CodeArtifactMetadata(PackageMetadata):
             version (str) : The latest version of the package.
         """
         try:
-            client = boto3.client("codeartifact")
-            response = client.list_package_versions(
+            response = self.client.list_package_versions(
                 domain=self.domain,
                 domainOwner=self.owner,
                 repository=self.repository,
