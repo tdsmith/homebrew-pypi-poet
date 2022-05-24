@@ -149,7 +149,7 @@ class CodeArtifactMetadata(PackageMetadata):
         try:
             return response["repositoryEndpoint"]
         except KeyError as e:
-            logging.info("Could not find key {} in response".format(e))
+            logging.warning("Could not find key {} in response".format(e))
             return None
 
     def get_download_url(self) -> str:
@@ -222,7 +222,7 @@ class CodeArtifactMetadata(PackageMetadata):
         try:
             return response["packageVersion"][key]
         except KeyError as key_error:
-            logging.info("Could not find key {} in response: {}".format(key, key_error))
+            logging.warning("Could not find key {} in response: {}".format(key, key_error))
             return None
 
     def get_latest_version(self) -> str:
@@ -249,7 +249,7 @@ class CodeArtifactMetadata(PackageMetadata):
         try:
             return response["versions"][0]["version"]
         except KeyError as key_error:
-            logging.info("Could not find latest version for {}. Error: {}".format(self.name, key_error))
+            logging.warning("Could not find latest version for {}. Error: {}".format(self.name, key_error))
             return None
 
     
