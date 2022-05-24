@@ -14,7 +14,6 @@ import codecs
 from collections import OrderedDict
 from contextlib import closing
 from hashlib import sha256
-from optparse import Option
 
 import boto3
 import json
@@ -30,7 +29,6 @@ from packaging.version import Version, parse, InvalidVersion
 
 import pkg_resources
 
-from pathlib import Path
 from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE, PRIVATE_RESOURCE_TEMPLATE
 from .version import __version__
 
