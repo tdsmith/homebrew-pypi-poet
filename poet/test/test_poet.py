@@ -71,3 +71,8 @@ def test_lint(tmpdir):
 def test_camel_case():
     result = poet("-f", "magic-wormhole")
     assert b"class MagicWormhole < Formula" in result
+
+
+def test_using_value():
+    result = poet("--using", "PRIVATE")
+    assert b"using: :PRIVATE" in result

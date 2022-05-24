@@ -16,6 +16,7 @@ from contextlib import closing
 from hashlib import sha256
 
 import boto3
+import botocore.exceptions
 import json
 import logging
 import os
@@ -152,18 +153,31 @@ class CodeArtifactMetadata(PackageMetadata):
         Returns:
             str: The checksum for the pip source distribution.
         """
-        response = self.client.list_package_version_assets(
-            domain=self.domain,
-            domainOwner=self.owner,
-            repository=self.repository,
-            format="pypi",
-            package=self.package_name,
-            packageVersion=self.version,
-        )
-        tar_ball = [
-            asset for asset in response["assets"] if ".tar.gz" in asset["name"]
-        ][0]
-        return tar_ball["hashes"]["SHA-256"]
+        try:
+            response = self.client.list_package_version_assets(
+                domain=self.domain,
+                domainOwner=self.owner,
+                repository=self.repository,
+                format="pypi",
+                package=self.package_name,
+                packageVersion=self.version,
+            )
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "PackageVersionNotFound":
+                raise PackageVersionNotFoundWarning(
+                    f"Package version {self.version} not found for {self.name}"
+                )
+            raise e
+        
+        try:
+            tar_ball = [
+                asset for asset in response["assets"] if ".tar.gz" in asset["name"]
+            ][0]
+            return tar_ball["hashes"]["SHA-256"]
+        except KeyError as key_error:
+            raise PipSourceMetadataException(
+                f"Could not find checksum for {self.name} version {self.version}"
+            ) from key_error
 
     def get_metadata(self, key: str) -> str:
         """Get a metadata value from the pip source distribution.
