@@ -421,6 +421,7 @@ def main():
         help="Generate resource stanzas for a package and its recursive "
         "dependencies (default).",
     )
+    parser.add_argument("--using", "-u", metavar="using", help="Add a CurlDownloadStrategy to the private resources.")
     parser.add_argument(
         "--also",
         "-a",
@@ -432,9 +433,6 @@ def main():
         "with --single. May be specified more than once.",
     )
     parser.add_argument("package", help=argparse.SUPPRESS, nargs="?")
-    parser.add_argument(
-        "--using", "-u", help="Set the strategy for the private repo urls"
-    )
     parser.add_argument(
         "-V",
         "--version",
@@ -469,7 +467,7 @@ def main():
 
         if args.using:
             logging.warning("Using private repo urls: {}".format(args.using))
-            print(resources_for([package] + args.also))
+            print(resources_for([package] + args.also, using=args.using))
         else:
             print(resources_for([package] + args.also))
     return 0
