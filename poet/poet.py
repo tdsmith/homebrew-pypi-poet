@@ -14,6 +14,7 @@ import codecs
 from collections import OrderedDict
 from contextlib import closing
 from hashlib import sha256
+from optparse import Option
 
 import boto3
 import json
@@ -87,38 +88,42 @@ def recursive_dependencies(package):
 class PipSourceMetadataException(Exception):
     pass
 
-
 @dataclass
 class PackageMetadata:
     name: str
     homepage: Optional[str] = None
-    domain: Optional[str] = None
-    owner: Optional[str] = None
-    repository: Optional[str] = None
-    download_url: Optional[str] = None
+    url: Optional[str] = None
     checksum: Optional[str] = None
-    checksum_type: str = field(default="sha256", init=False)
-    source_file: Optional[Path] = None
+    checksum_type: str = field(default="sha256")
     version: Optional[Version] = None
+    package_name: Optional[str] = None
 
-    def __init__(self, name, version, repository=None, domain=None, owner=None) -> None:
-        self.name = name
+    def __post_init__(self):
         self.package_name = self.name.replace(".", "-")
-        self.repository = repository or os.getenv("AWS_CODEARTIFACT_REPOSITORY")
-        self.domain = domain or os.getenv("AWS_CODEARTIFACT_DOMAIN")
-        self.owner = owner or os.getenv("AWS_CODEARTIFACT_DOMAIN_OWNER")
-        self.base_url = self.get_base_url()
-        self.download_url = self.get_download_url()
-        self.checksum = self.get_checksum()
-        self.checksum_type = "SHA-256"
-        self.url = self.get_download_url()
-        self.version = self.get_latest_version() if version is None else version
 
     def asdict(self):
         exclude_keys = ["version"]
         return {k: v for k, v in self.__dict__.items() if k not in exclude_keys}
 
-    def get_base_url(self):
+@dataclass
+class CodeArtifactMetadata(PackageMetadata):
+    repository: Optional[str] = os.getenv("AWS_CODEARTIFACT_REPOSITORY", None)
+    domain: Optional[str] = os.getenv("AWS_CODEARTIFACT_DOMAIN", None)
+    owner: Optional[str] = os.getenv("AWS_CODEARTIFACT_DOMAIN_OWNER", None)
+    client: Optional[boto3.session.Session.client] = None
+
+    def __post_init__(self):
+        # If the version is not specified, get the latest version
+        super().__post_init__()
+        if self.version is None:
+            self.version = self.get_latest_version()
+        self.homepage = self.get_metadata("homePage")
+        self.client = boto3.client("codeartifact")
+        self.base_url = self.get_base_url()
+        self.checksum = self.get_checksum()
+        self.url = self.get_download_url()
+
+    def get_base_url(self) -> str:
         """
         Get the base URL for the pip source distribution.
 
@@ -134,17 +139,16 @@ class PackageMetadata:
         )
         return response["repositoryEndpoint"]
 
-    def get_download_url(self):
+    def get_download_url(self) -> str:
         """Get the download URL for the pip source distribution.
 
         Returns:
             str: The download URL for the pip source distribution.
         """
-        version = self.get_latest_version() if self.version is None else self.version
-        base_url = self.get_base_url() if self.base_url is None else self.base_url
-        return f"{base_url}/{self.package_name}-{version}.tar.gz"
+        base_url = self.get_base_url()
+        return f"{base_url}simple/{self.package_name}/{self.version}/{self.name}-{self.version}.tar.gz"
 
-    def get_checksum(self):
+    def get_checksum(self) -> str:
         """
         Get the checksum for the pip source distribution.
 
@@ -158,7 +162,7 @@ class PackageMetadata:
             repository=self.repository,
             format="pypi",
             package=self.package_name,
-            packageVersion=self.get_latest_version(),
+            packageVersion=self.version,
         )
         tar_ball = [
             asset for asset in response["assets"] if ".tar.gz" in asset["name"]
@@ -166,7 +170,7 @@ class PackageMetadata:
         return tar_ball["hashes"]["SHA-256"]
 
     def get_metadata(self, key: str) -> str:
-        """Get the metadata from the pip source distribution.
+        """Get a metadata value from the pip source distribution.
 
         Args:
             key (str): The key to get from metadata
@@ -176,26 +180,30 @@ class PackageMetadata:
         """
         try:
             client = boto3.client("codeartifact")
-            response = client.get_package_version_metadata(
+            response = client.describe_package_version(
                 domain=self.domain,
                 domainOwner=self.owner,
                 repository=self.repository,
                 format="pypi",
-                package=self.name,
-                packageVersion=self.get_latest_version(),
-                key=key,
+                package=self.package_name,
+                packageVersion=self.version,
             )
-            return response[key]
         except Exception as e:
             raise PipSourceMetadataException(
-                f"Could not get metadata for {self.name} {self.version}"
+                f"Could not get metadata for {self.name} {self.version}: {e}"
             ) from e
+        
+        try:
+            return response["packageVersion"][key]
+        except KeyError:
+            logging.info("Could not find key {} in response".format(key))
+            return None
 
-    def get_latest_version(self):
+    def get_latest_version(self) -> str:
         """Get the latest version of the package.
 
         Returns:
-            Version: The latest version of the package.
+            version (str) : The latest version of the package.
         """
         try:
             client = boto3.client("codeartifact")
@@ -215,6 +223,7 @@ class PackageMetadata:
             ) from e
 
 
+    
 def research_package(name: str, version=None) -> PackageMetadata:
     """
     Return metadata about a package.
@@ -236,15 +245,11 @@ def research_package(name: str, version=None) -> PackageMetadata:
         logging.warn("Invalid version: %s", invalid_version)
         version = None
 
-    try:
-        code_artifact_repo = os.getenv("AWS_CODEARTIFACT_REPOSITORY")
-        logging.warning(f"code_artifact_repo: {code_artifact_repo}")
-    except TypeError as type_error:
-        code_artifact_repo = None
+    code_artifact_repo = os.getenv("AWS_CODEARTIFACT_REPOSITORY", None)
 
-    if code_artifact_repo:
-        logging.warning("Using AWS CodeArtifact for package metadata")
-        package_metadata = PackageMetadata(name=name, version=version)
+    if code_artifact_repo is not None:
+        logging.warning("Using AWS CodeArtifact repository {} to get package metadata for {}".format(code_artifact_repo, name))
+        package_metadata = CodeArtifactMetadata(name=name, version=version)
         return package_metadata.asdict()
     else:
         with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
@@ -462,7 +467,6 @@ def main():
             parser.print_usage(sys.stderr)
             return 1
 
-        breakpoint()
         if args.using:
             logging.warning("Using private repo urls: {}".format(args.using))
             print(resources_for([package] + args.also))
