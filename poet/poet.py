@@ -106,8 +106,6 @@ class PackageMetadata:
     source_file: Optional[Path] = None
     version: Optional[Version] = None
 
-
-
     def __init__(self, name, version) -> None:
         self.name = name
         self.package_name = self.name.replace(".", "-")
@@ -126,7 +124,8 @@ class PackageMetadata:
         return {k: v for k, v in self.__dict__.items() if k not in exclude_keys}
 
     def get_base_url(self):
-        """Get the base URL for the pip source distribution.
+        """
+        Get the base URL for the pip source distribution.
 
         Returns:
             str: The base URL for the pip source distribution.
@@ -140,14 +139,12 @@ class PackageMetadata:
         )
         return response["repositoryEndpoint"]
 
-    def get_checksum(self):
-        """Given the path to a pip source file, return the files checksum.
-
-        Args:
-            pip_source_file (Path): The path to a .tar.gz file containing a pip source distribution.
+    def get_checksum(self, hash_type="SHA256"):
+        """
+        Get the checksum for the pip source distribution.
 
         Returns:
-            str: The checksum of the pip source file.
+            str: The checksum for the pip source distribution.
         """
         client = boto3.client("codeartifact")
         response = client.list_package_version_assets(
@@ -159,13 +156,13 @@ class PackageMetadata:
             packageVersion=self.get_latest_version(),
         )
         tar_ball = [asset for asset in response["assets"] if ".tar.gz" in asset["name"]][0]
-        return tar_ball["hashes"]["SHA-256"]
+        return tar_ball["hashes"][hash_type]
     
     def get_metadata(self, key: str) -> str:
         """Get the metadata from the pip source distribution.
 
         Args:
-            key (str): The key to get from metadata/
+            key (str): The key to get from metadata
 
         Returns:
             str: The value of the key.
