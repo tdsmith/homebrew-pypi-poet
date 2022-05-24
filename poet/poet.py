@@ -101,12 +101,12 @@ class PackageMetadata:
     source_file: Optional[Path] = None
     version: Optional[Version] = None
 
-    def __init__(self, name, version) -> None:
+    def __init__(self, name, version, repository=None, domain=None, owner=None) -> None:
         self.name = name
         self.package_name = self.name.replace(".", "-")
-        self.repository = os.getenv("AWS_CODEARTIFACT_REPOSITORY")
-        self.domain = os.getenv("AWS_CODEARTIFACT_DOMAIN")
-        self.owner = os.getenv("AWS_CODEARTIFACT_DOMAIN_OWNER")
+        self.repository = repository or os.getenv("AWS_CODEARTIFACT_REPOSITORY")
+        self.domain = domain or os.getenv("AWS_CODEARTIFACT_DOMAIN")
+        self.owner = owner or os.getenv("AWS_CODEARTIFACT_DOMAIN_OWNER")
         self.base_url = self.get_base_url()
         self.download_url = self.get_download_url()
         self.checksum = self.get_checksum()
@@ -161,7 +161,7 @@ class PackageMetadata:
             packageVersion=self.get_latest_version(),
         )
         tar_ball = [asset for asset in response["assets"] if ".tar.gz" in asset["name"]][0]
-        return tar_ball["hashes"][self.checksum_type]
+        return tar_ball["hashes"]["SHA-256"]
     
     def get_metadata(self, key: str) -> str:
         """Get the metadata from the pip source distribution.
@@ -206,7 +206,6 @@ class PackageMetadata:
                 status="Published",
                 sortBy="PUBLISHED_TIME"
             )
-            breakpoint()
             return response["versions"][0]["version"]
         except Exception as e:
             raise PackageVersionNotFoundWarning(
