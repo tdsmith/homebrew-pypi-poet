@@ -412,14 +412,7 @@ def merge_graphs(graphs):
             elif result[key] == g[key]:
                 pass
             else:
-<<<<<<< Updated upstream
-                warnings.warn(
-                    "Merge conflict: {l.name} {l.version} and "
-                    "{r.name} {r.version}; using the former.".format(
-                        l=result[key], r=g[key]
-                    ),
-                    ConflictingDependencyWarning,
-                )
+                logging.warning(f"Comparing {result[key]['name']}@{result[key]['version']} to {g[key]['name']}@{g[key]['version']}")
     return OrderedDict([k, result[k]] for k in sorted(result.keys()))
 
 
