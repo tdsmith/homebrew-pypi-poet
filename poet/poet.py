@@ -115,7 +115,7 @@ class PackageMetadata:
         self.package_name = self.name.replace(".", "-")
 
     def asdict(self):
-        exclude_keys = ["version", "tarball_asset_data"]
+        exclude_keys = ["version"]
         return {k: v for k, v in self.__dict__.items() if k not in exclude_keys}
 
 @dataclass
@@ -174,12 +174,12 @@ class CodeArtifactMetadata(PackageMetadata):
         base_url = urlparse(f"{self.get_base_url()}simple/{self.package_name}/{self.version}/{self.tarball}")
         return urlunparse(base_url)
 
-    def get_tarball_asset_data(self) -> str:
+    def get_tarball_asset_data(self) -> TarballMetadata:
         """
-        Get the checksum for the pip source distribution.
+        Get the tarball asset for the pip source distribution.
 
         Returns:
-            str: The checksum for the pip source distribution.
+            TarballMetadata: The metadata for the tarball containing the name of the file and the sha256 hash.
         """
         try:
             response = self.client.list_package_version_assets(
@@ -207,9 +207,8 @@ class CodeArtifactMetadata(PackageMetadata):
         try:
             tarball_out = TarballMetadata(name=tar_ball["name"], checksum=tar_ball["hashes"]["SHA-256"])
             return tarball_out
-        except KeyError as e:
-            logging.warning("Could not find key {} in response".format(e))
-            return None
+        except KeyError as key_error:
+            raise CodeArtifactMetadataException(f"An error ocurred when getting tarball data for {self.package_name}: {key_error}") from key_error
 
     def get_metadata(self, key: str) -> str:
         """Get a metadata value from the pip source distribution.
