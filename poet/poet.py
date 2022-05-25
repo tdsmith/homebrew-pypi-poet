@@ -15,25 +15,23 @@ from collections import OrderedDict
 from contextlib import closing
 from hashlib import sha256
 
-from importlib.metadata import metadata
+import boto3
+import botocore.exceptions
 import json
 import logging
 import os
-import shlex
-import subprocess
 import sys
+from urllib.parse import urlparse, urlunparse
 import warnings
 from dataclasses import dataclass, field
 from typing import Optional
 
 from packaging.version import Version, parse, InvalidVersion
 
-from urlextract import URLExtract
 
 import pkg_resources
 
-from pathlib import Path
-from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE
+from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE, PRIVATE_RESOURCE_TEMPLATE
 from .version import __version__
 
 try:
@@ -48,6 +46,9 @@ logging.basicConfig(level=int(os.environ.get("POET_DEBUG", 30)))
 
 
 class PackageNotInstalledWarning(UserWarning):
+    pass
+
+class PackageNotFoundWarning(UserWarning):
     pass
 
 
@@ -93,55 +94,101 @@ class PipSourceMetadataException(Exception):
 @dataclass
 class PackageMetadata:
     name: str
-    homepage: str = field(optional=True)
-    download_url: Optional[str] = None
+    homepage: Optional[str] = None
+    url: Optional[str] = None
     checksum: Optional[str] = None
-    checksum_type: str = field(default="sha256", init=False)
-    source_file: Optional[Path] = None
+    checksum_type: str = field(default="sha256")
     version: Optional[Version] = None
-    
+    package_name: Optional[str] = None
+
+    def __post_init__(self):
+        self.package_name = self.name.replace(".", "-")
+
     def asdict(self):
         exclude_keys = ["version"]
-        return dict(filter(lambda x: x[0] not in exclude_keys, super().asdict()))
+        return {k: v for k, v in self.__dict__.items() if k not in exclude_keys}
 
-    def __getitem__(self, idx):
-        try:
-            return getattr(self, idx)
-        except AttributeError as err:
-            raise KeyError(idx) from err
+@dataclass
+class CodeArtifactMetadata(PackageMetadata):
+    repository: Optional[str] = os.getenv("AWS_CODEARTIFACT_REPOSITORY", None)
+    domain: Optional[str] = os.getenv("AWS_CODEARTIFACT_DOMAIN", None)
+    owner: Optional[str] = os.getenv("AWS_CODEARTIFACT_DOMAIN_OWNER", None)
+    client: Optional[boto3.session.Session.client] = None
 
-    def __setitem__(self, idx, val):
-        setattr(self, idx, val)
+    def __post_init__(self):
+        # If the version is not specified, get the latest version
+        super().__post_init__()
+        self.client = boto3.client("codeartifact")
+        if self.version is None:
+            self.version = self.get_latest_version()
+        self.homepage = self.get_metadata("homePage")
+        self.base_url = self.get_base_url()
+        self.checksum = self.get_checksum()
+        self.url = self.get_download_url()
 
-    
-    def get_checksums(self):
-        """Given the path to a pip source file, return the files checksum.
-
-        Args:
-            pip_source_file (Path): The path to a .tar.gz file containing a pip source distribution.
+    def get_base_url(self) -> str:
+        """
+        Get the base URL for the pip source distribution.
 
         Returns:
-            str: The checksum of the pip source file.
+            str: The base URL for the pip source distribution.
         """
-        if not self.source_file.exists():
-            raise PipSourceMetadataException("File does not exist: %s" % self.source_file)
-        
-<<<<<<< Updated upstream
-        self.checksum = sha256(self.source_file.read_bytes()).hexdigest()
-   
-    def get_download_url(self):
-        """
-        Returns the download URL for the pip source distribution.
-        This method will download the pip package from the source distribution. 
-=======
         try:
-            tar_ball = next(iter([
-                asset for asset in response["assets"] if ".tar.gz" in asset["name"]
-            ]))
-            return tar_ball["hashes"]["SHA-256"]
-        except StopIteration:
-            logging.warning("Could not find tar.gz file for {}".format(self.name))
+            response = self.client.get_repository_endpoint(
+                domain=self.domain,
+                domainOwner=self.owner,
+                repository=self.repository,
+                format="pypi",
+            )
+        except botocore.exceptions.ClientError as client_error:
+            if client_error.response["Error"]["Code"] == "RepositoryNotFound":
+                raise PackageVersionNotFoundWarning(
+                    f"Package version {self.version} not found for {self.name}"
+                )
+            raise client_error
+        try:
+            return response["repositoryEndpoint"]
+        except KeyError as e:
+            logging.warning("Could not find key {} in response".format(e))
             return None
+
+    def get_download_url(self) -> str:
+        """Get the download URL for the pip source distribution.
+
+        Returns:
+            str: The download URL for the pip source distribution.
+        """
+        base_url = urlparse(f"{self.get_base_url()}simple/{self.package_name}/{self.version}/{self.name}-{self.version}.tar.gz")
+        return urlunparse(base_url)
+
+    def get_checksum(self) -> str:
+        """
+        Get the checksum for the pip source distribution.
+
+        Returns:
+            str: The checksum for the pip source distribution.
+        """
+        try:
+            response = self.client.list_package_version_assets(
+                domain=self.domain,
+                domainOwner=self.owner,
+                repository=self.repository,
+                format="pypi",
+                package=self.package_name,
+                packageVersion=self.version,
+            )
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "PackageVersionNotFound":
+                raise PackageVersionNotFoundWarning(
+                    f"Package version {self.version} not found for {self.name}"
+                )
+            raise e
+        
+        try:
+            tar_ball = [
+                asset for asset in response["assets"] if ".tar.gz" in asset["name"]
+            ][0]
+            return tar_ball["hashes"]["SHA-256"]
         except KeyError as key_error:
             raise PipSourceMetadataException(
                 f"Could not find checksum for {self.name} version {self.version}"
@@ -149,45 +196,63 @@ class PackageMetadata:
 
     def get_metadata(self, key: str) -> str:
         """Get a metadata value from the pip source distribution.
->>>>>>> Stashed changes
-
-        The standard out of this command contains an obfuscated URL and a regular URL that points to a .tar.gz file.
-
-        Arguments:
-            module (str): The name of the module to download.
-            output_dir (str): The directory to download the module to.
-
-        Returns:
-            str: The download URL for the pip source distribution.
-        """
-        
-        try:
-            output = subprocess.run(shlex.split(f"pip3 download --dest {output_dir} --no-binary :all: --no-deps {self.name}"), capture_output=True, text=True)
-        except subprocess.CalledProcessError as cpe:
-            raise PipSourceMetadataException(f"Could not download {self.name} from pip source file: {cpe.stderr}")
-        
-        try:
-            extractor = URLExtract()
-            urls = extractor.find_urls(output.stdout)
-            self.url = next(filter(lambda url: self.name in url, urls))
-        except Exception as e:
-            raise PipSourceMetadataException(f"Could not get download URL from pip source file: {e}") from e
-        
-    def get_homepage(self):
-        """Get the homepage from the pip source distribution.
 
         Args:
-            value (str): The value to get from metadata/
+            key (str): The key to get from metadata
 
         Returns:
-            PackageMetadata: A dictionary of metadata about the package required for the resource stanza.
+            str: The value of the key.
         """
         try:
-            self.homepage =  metadata(self.name).get("Home-page")
-        except Exception as e:
-            raise PipSourceMetadataException("Could not get metadata from pip source file: %s" % e)
+            response = self.client.describe_package_version(
+                domain=self.domain,
+                domainOwner=self.owner,
+                repository=self.repository,
+                format="pypi",
+                package=self.package_name,
+                packageVersion=self.version,
+            )
+        except botocore.exceptions.ClientError as client_error:
+            if client_error.response["Error"]["Code"] == "PackageVersionNotFound":
+                raise PackageVersionNotFoundWarning(
+                    f"Package version {self.version} not found for {self.name}"
+                )
+            raise client_error
+        
+        try:
+            return response["packageVersion"][key]
+        except KeyError as key_error:
+            logging.warning("Could not find key {} in response: {}".format(key, key_error))
+            return None
 
+    def get_latest_version(self) -> str:
+        """Get the latest version of the package.
 
+        Returns:
+            version (str) : The latest version of the package.
+        """
+        try:
+            response = self.client.list_package_versions(
+                domain=self.domain,
+                domainOwner=self.owner,
+                repository=self.repository,
+                format="pypi",
+                package=self.package_name,
+                status="Published",
+                sortBy="PUBLISHED_TIME",
+            )
+        except botocore.exceptions.ClientError as client_error:
+            if client_error.response["Error"]["Code"] == "PackageNotFound":
+                raise PackageNotFoundWarning(f"Package {self.name} not found")
+            raise client_error
+        
+        try:
+            return response["versions"][0]["version"]
+        except KeyError as key_error:
+            logging.warning("Could not find latest version for {}. Error: {}".format(self.name, key_error))
+            return None
+
+    
 def research_package(name: str, version=None) -> PackageMetadata:
     """
     Return metadata about a package.
@@ -196,70 +261,70 @@ def research_package(name: str, version=None) -> PackageMetadata:
     Args:
         name (str): The name of the package to look up.
         version (str): The version of the package to look up.
-    
+
     Returns:
-        PackageMetadata: A dictionary of metadata about the package.  
+        PackageMetadata: A dictionary of metadata about the package.
     """
-    try:
-        parsed_version = parse(version)
-    except InvalidVersion as invalid_version:
-        logging.warn("Invalid version: %s", invalid_version)
-        version = None
+    if version is None:
+        logging.warning(f"A version was not specified for {name}. Using latest version.")
+    else:
+        try:
+            parse(version)
+        except InvalidVersion as invalid_version:
+            logging.warn("Invalid version: %s", invalid_version)
+            version = None
 
-    pip_source_dir = Path(os.getenv("PIP_SOURCE_DIR"))
-    if pip_source_dir.is_dir() and version:
-        pip_source_file = pip_source_dir/"{}-{}.tar.gz".format(name.lower(), str(version))
-        package_metadata = PackageMetadata(name=name, version=parsed_version, source_dir=pip_source_file)
-        package_metadata.get_homepage()
-        package_metadata.get_metadata()
-        package_metadata.get_checksums()
-        package_metadata.get_download_url()
-        return package_metadata
+    code_artifact_repo = os.getenv("AWS_CODEARTIFACT_REPOSITORY", None)
 
+    if code_artifact_repo is not None:
+        logging.warning("Using AWS CodeArtifact repository {} to get package metadata for {}".format(code_artifact_repo, name))
+        package_metadata = CodeArtifactMetadata(name=name, version=version)
+        return package_metadata.asdict()
+    else:
+        with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
+            reader = codecs.getreader("utf-8")
+            pkg_data = json.load(reader(f))
 
+        d = {}
+        d["name"] = pkg_data["info"]["name"]
+        d["homepage"] = pkg_data["info"].get("home_page", "")
+        artefact = None
+        if version:
+            for pypi_version in pkg_data["releases"]:
+                if pkg_resources.safe_version(pypi_version) == version:
+                    for version_artefact in pkg_data["releases"][pypi_version]:
+                        if version_artefact["packagetype"] == "sdist":
+                            artefact = version_artefact
+                            break
+            if artefact is None:
+                warnings.warn(
+                    "Could not find an exact version match for "
+                    "{} version {}; using newest instead".format(name, version),
+                    PackageVersionNotFoundWarning,
+                )
 
-    with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
-        reader = codecs.getreader("utf-8")
-        pkg_data = json.load(reader(f))
+        if artefact is None:  # no version given or exact match not found
+            for url in pkg_data["urls"]:
+                if url["packagetype"] == "sdist":
+                    artefact = url
+                    break
 
-    d = {}
-    d['name'] = pkg_data['info']['name']
-    d['homepage'] = pkg_data['info'].get('home_page', '')
-    artefact = None
-    if version:
-        for pypi_version in pkg_data['releases']:
-            if pkg_resources.safe_version(pypi_version) == version:
-                for version_artefact in pkg_data['releases'][pypi_version]:
-                    if version_artefact['packagetype'] == 'sdist':
-                        artefact = version_artefact
-                        break
-        if artefact is None:
-            warnings.warn("Could not find an exact version match for "
-                          "{} version {}; using newest instead".
-                          format(name, version), PackageVersionNotFoundWarning)
-
-    if artefact is None:  # no version given or exact match not found
-        for url in pkg_data['urls']:
-            if url['packagetype'] == 'sdist':
-                artefact = url
-                break
-
-    if artefact:
-        d['url'] = artefact['url']
-        if 'digests' in artefact and 'sha256' in artefact['digests']:
-            logging.debug("Using provided checksum for %s", name)
-            d['checksum'] = artefact['digests']['sha256']
-        else:
-            logging.debug("Fetching sdist to compute checksum for %s", name)
-            with closing(urlopen(artefact['url'])) as f:
-                d['checksum'] = sha256(f.read()).hexdigest()
-            logging.debug("Done fetching %s", name)
-    else:  # no sdist found
-        d['url'] = ''
-        d['checksum'] = ''
-        warnings.warn("No sdist found for %s" % name)
-    d['checksum_type'] = 'sha256'
-    return d
+        if artefact:
+            d["url"] = artefact["url"]
+            if "digests" in artefact and "sha256" in artefact["digests"]:
+                logging.debug("Using provided checksum for %s", name)
+                d["checksum"] = artefact["digests"]["sha256"]
+            else:
+                logging.debug("Fetching sdist to compute checksum for %s", name)
+                with closing(urlopen(artefact["url"])) as f:
+                    d["checksum"] = sha256(f.read()).hexdigest()
+                logging.debug("Done fetching %s", name)
+        else:  # no sdist found
+            d["url"] = ""
+            d["checksum"] = ""
+            warnings.warn("No sdist found for %s" % name)
+        d["checksum_type"] = "sha256"
+        return d
 
 
 def make_graph(pkg):
@@ -270,7 +335,7 @@ def make_graph(pkg):
     dependencies, and each value is a dictionary returned by research_package.
     (No, it's not really a graph.)
     """
-    ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
+    ignore = ["argparse", "pip", "setuptools", "wsgiref"]
     pkg_deps = recursive_dependencies(pkg_resources.Requirement.parse(pkg))
 
     dependencies = {key: {} for key in pkg_deps if key not in ignore}
@@ -278,15 +343,17 @@ def make_graph(pkg):
     versions = {package.key: package.version for package in installed_packages}
     for package in dependencies:
         try:
-            dependencies[package]['version'] = versions[package]
+            dependencies[package]["version"] = versions[package]
         except KeyError:
-            warnings.warn("{} is not installed so we cannot compute "
-                          "resources for its dependencies.".format(package),
-                          PackageNotInstalledWarning)
-            dependencies[package]['version'] = None
+            warnings.warn(
+                "{} is not installed so we cannot compute "
+                "resources for its dependencies.".format(package),
+                PackageNotInstalledWarning,
+            )
+            dependencies[package]["version"] = None
 
     for package in dependencies:
-        package_data = research_package(package, dependencies[package]['version'])
+        package_data = research_package(package, dependencies[package]["version"])
         dependencies[package].update(package_data)
 
     return OrderedDict(
@@ -301,27 +368,39 @@ def formula_for(package, also=None):
     package_name = req.project_name
 
     nodes = merge_graphs(make_graph(p) for p in [package] + also)
-    resources = [value for key, value in nodes.items()
-                 if key.lower() != package_name.lower()]
+    resources = [
+        value for key, value in nodes.items() if key.lower() != package_name.lower()
+    ]
 
     if package_name in nodes:
         root = nodes[package_name]
     elif package_name.lower() in nodes:
         root = nodes[package_name.lower()]
     else:
-        raise Exception("Could not find package {} in nodes {}".format(package, nodes.keys()))
+        raise Exception(
+            "Could not find package {} in nodes {}".format(package, nodes.keys())
+        )
 
     python = "python" if sys.version_info.major == 2 else "python3"
-    return FORMULA_TEMPLATE.render(package=root,
-                                   resources=resources,
-                                   python=python,
-                                   ResourceTemplate=RESOURCE_TEMPLATE)
+    return FORMULA_TEMPLATE.render(
+        package=root,
+        resources=resources,
+        python=python,
+        ResourceTemplate=RESOURCE_TEMPLATE,
+    )
 
 
-def resources_for(packages):
+def resources_for(packages, using=False):
     nodes = merge_graphs(make_graph(p) for p in packages)
-    return '\n\n'.join([RESOURCE_TEMPLATE.render(resource=node)
-                        for node in nodes.values()])
+    return (
+        "\n\n".join(
+            [RESOURCE_TEMPLATE.render(resource=node) for node in nodes.values()]
+        )
+        if not using
+        else "\n\n".join(
+            [PRIVATE_RESOURCE_TEMPLATE.render(resource=node, using=using) for node in nodes.values()]
+        )
+    )
 
 
 def merge_graphs(graphs):
@@ -336,55 +415,69 @@ def merge_graphs(graphs):
 <<<<<<< Updated upstream
                 warnings.warn(
                     "Merge conflict: {l.name} {l.version} and "
-                    "{r.name} {r.version}; using the former.".
-                    format(l=result[key], r=g[key]),
-                    ConflictingDependencyWarning)
-=======
-                logging.warning(f"Comparing: {result[key]['name']} version {result[key]['version']} to {g[key]['name']} version {g[key]['version']}")
-                warnings.warn(f"Merge conflict found. Using the former",
+                    "{r.name} {r.version}; using the former.".format(
+                        l=result[key], r=g[key]
+                    ),
                     ConflictingDependencyWarning,
                 )
->>>>>>> Stashed changes
     return OrderedDict([k, result[k]] for k in sorted(result.keys()))
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Generate Homebrew resource stanzas for pypi packages '
-                    'and their dependencies.')
+        description="Generate Homebrew resource stanzas for pypi packages "
+        "and their dependencies."
+    )
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument(
-        '--single', '-s', metavar='package', nargs='+',
-        help='Generate a resource stanza for one or more packages, '
-             'without considering dependencies.')
+        "--single",
+        "-s",
+        metavar="package",
+        nargs="+",
+        help="Generate a resource stanza for one or more packages, "
+        "without considering dependencies.",
+    )
     actions.add_argument(
-        '--formula', '-f', metavar='package',
-        help='Generate a complete formula for a pypi package with its '
-             'recursive pypi dependencies as resources.')
+        "--formula",
+        "-f",
+        metavar="package",
+        help="Generate a complete formula for a pypi package with its "
+        "recursive pypi dependencies as resources.",
+    )
     actions.add_argument(
-        '--resources', '-r', metavar='package',
-        help='Generate resource stanzas for a package and its recursive '
-             'dependencies (default).')
+        "--resources",
+        "-r",
+        metavar="package",
+        help="Generate resource stanzas for a package and its recursive "
+        "dependencies (default).",
+    )
+    parser.add_argument("--using", "-u", metavar="using", help="Add a CurlDownloadStrategy to the private resources.")
     parser.add_argument(
-        '--also', '-a', metavar='package', action='append', default=[],
-        help='Specify an additional package that should be added to the '
-             'resource list with its recursive dependencies. May not be used '
-             'with --single. May be specified more than once.')
-    parser.add_argument('package', help=argparse.SUPPRESS, nargs='?')
+        "--also",
+        "-a",
+        metavar="package",
+        action="append",
+        default=[],
+        help="Specify an additional package that should be added to the "
+        "resource list with its recursive dependencies. May not be used "
+        "with --single. May be specified more than once.",
+    )
+    parser.add_argument("package", help=argparse.SUPPRESS, nargs="?")
     parser.add_argument(
-        '-V', '--version', action='version',
-        version='homebrew-pypi-poet {}'.format(__version__))
+        "-V",
+        "--version",
+        action="version",
+        version="homebrew-pypi-poet {}".format(__version__),
+    )
     args = parser.parse_args()
 
     if (args.formula or args.resources) and args.package:
-        print('--formula and --resources take a single argument.',
-              file=sys.stderr)
+        print("--formula and --resources take a single argument.", file=sys.stderr)
         parser.print_usage(sys.stderr)
         return 1
 
     if args.also and args.single:
-        print("Can't use --also with --single",
-              file=sys.stderr)
+        print("Can't use --also with --single", file=sys.stderr)
         parser.print_usage(sys.stderr)
         return 1
 
@@ -394,17 +487,21 @@ def main():
         for i, package in enumerate(args.single):
             data = research_package(package)
             print(RESOURCE_TEMPLATE.render(resource=data))
-            if i != len(args.single)-1:
+            if i != len(args.single) - 1:
                 print()
     else:
         package = args.resources or args.package
         if not package:
             parser.print_usage(sys.stderr)
             return 1
-        print(resources_for([package] + args.also))
+
+        if args.using:
+            logging.warning("Using private repo urls: {}".format(args.using))
+            print(resources_for([package] + args.also, using=args.using))
+        else:
+            print(resources_for([package] + args.also))
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
-
