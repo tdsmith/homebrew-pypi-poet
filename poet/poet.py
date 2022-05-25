@@ -126,12 +126,30 @@ class PackageMetadata:
         if not self.source_file.exists():
             raise PipSourceMetadataException("File does not exist: %s" % self.source_file)
         
+<<<<<<< Updated upstream
         self.checksum = sha256(self.source_file.read_bytes()).hexdigest()
    
     def get_download_url(self):
         """
         Returns the download URL for the pip source distribution.
         This method will download the pip package from the source distribution. 
+=======
+        try:
+            tar_ball = next(iter([
+                asset for asset in response["assets"] if ".tar.gz" in asset["name"]
+            ]))
+            return tar_ball["hashes"]["SHA-256"]
+        except StopIteration:
+            logging.warning("Could not find tar.gz file for {}".format(self.name))
+            return None
+        except KeyError as key_error:
+            raise PipSourceMetadataException(
+                f"Could not find checksum for {self.name} version {self.version}"
+            ) from key_error
+
+    def get_metadata(self, key: str) -> str:
+        """Get a metadata value from the pip source distribution.
+>>>>>>> Stashed changes
 
         The standard out of this command contains an obfuscated URL and a regular URL that points to a .tar.gz file.
 
@@ -315,11 +333,18 @@ def merge_graphs(graphs):
             elif result[key] == g[key]:
                 pass
             else:
+<<<<<<< Updated upstream
                 warnings.warn(
                     "Merge conflict: {l.name} {l.version} and "
                     "{r.name} {r.version}; using the former.".
                     format(l=result[key], r=g[key]),
                     ConflictingDependencyWarning)
+=======
+                logging.warning(f"Comparing: {result[key]['name']} version {result[key]['version']} to {g[key]['name']} version {g[key]['version']}")
+                warnings.warn(f"Merge conflict found. Using the former",
+                    ConflictingDependencyWarning,
+                )
+>>>>>>> Stashed changes
     return OrderedDict([k, result[k]] for k in sorted(result.keys()))
 
 
