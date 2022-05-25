@@ -94,6 +94,12 @@ def recursive_dependencies(package):
 class PipSourceMetadataException(Exception):
     pass
 
+
+@dataclass
+class TarballMetadata:
+    name: str
+    checksum: str
+
 @dataclass
 class PackageMetadata:
     name: str
@@ -109,7 +115,7 @@ class PackageMetadata:
         self.package_name = self.name.replace(".", "-")
 
     def asdict(self):
-        exclude_keys = ["version"]
+        exclude_keys = ["version", "tarball_asset_data"]
         return {k: v for k, v in self.__dict__.items() if k not in exclude_keys}
 
 @dataclass
@@ -118,6 +124,7 @@ class CodeArtifactMetadata(PackageMetadata):
     domain: Optional[str] = os.getenv("AWS_CODEARTIFACT_DOMAIN", None)
     owner: Optional[str] = os.getenv("AWS_CODEARTIFACT_DOMAIN_OWNER", None)
     client: Optional[boto3.session.Session.client] = None
+    tarball_asset_data: Optional[TarballMetadata] = None
 
     def __post_init__(self):
         # If the version is not specified, get the latest version
@@ -125,10 +132,11 @@ class CodeArtifactMetadata(PackageMetadata):
         self.client = boto3.client("codeartifact")
         if self.version is None:
             self.version = self.get_latest_version()
-        self.tarball = self.get_tarball_asset_data("name")
+        self.tarball_asset_data = self.get_tarball_asset_data()
+        self.tarball = self.tarball_asset_data.name
         self.homepage = self.get_metadata("homePage")
         self.base_url = self.get_base_url()
-        self.checksum = self.get_tarball_asset_data("SHA-256")
+        self.checksum = self.tarball_asset_data.checksum
         self.url = self.get_download_url()
 
     def get_base_url(self) -> str:
@@ -166,7 +174,7 @@ class CodeArtifactMetadata(PackageMetadata):
         base_url = urlparse(f"{self.get_base_url()}simple/{self.package_name}/{self.version}/{self.tarball}")
         return urlunparse(base_url)
 
-    def get_tarball_asset_data(self, value: str) -> str:
+    def get_tarball_asset_data(self) -> str:
         """
         Get the checksum for the pip source distribution.
 
@@ -193,12 +201,15 @@ class CodeArtifactMetadata(PackageMetadata):
             tar_ball = next(iter([
                 asset for asset in response["assets"] if ".tar.gz" in asset["name"]
             ]))
-            for key in tar_ball["hashes"].keys():
-                tar_ball[key] = tar_ball["hashes"][key]
-            tar_ball.pop("hashes", None)
-            return tar_ball[value]
         except StopIteration as stop_iteration:
             raise CodeArtifactMetadataException("Could not find tarball asset") from stop_iteration
+        
+        try:
+            tarball_out = TarballMetadata(name=tar_ball["name"], checksum=tar_ball["hashes"]["SHA-256"])
+            return tarball_out
+        except KeyError as e:
+            logging.warning("Could not find key {} in response".format(e))
+            return None
 
     def get_metadata(self, key: str) -> str:
         """Get a metadata value from the pip source distribution.
