@@ -24,7 +24,7 @@ import sys
 from urllib.parse import urlparse, urlunparse
 import warnings
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Type
 
 from packaging.version import Version, parse, InvalidVersion
 
@@ -381,10 +381,13 @@ def make_graph(pkg):
                 "resources for its dependencies.".format(package),
                 PackageNotInstalledWarning,
             )
-            dependencies[package]["version"] = None    
-    for package in dependencies:
-        package_data = research_package(package, dependencies[package]["version"])
-        dependencies[package].update(package_data)
+            dependencies[package]["version"] = None
+    try:    
+        for package in dependencies:
+            package_data = research_package(package, dependencies[package]["version"])
+            dependencies[package].update(package_data)
+    except TypeError as type_error:
+        logging.warning("Could not get metadata for %s: %s", package, type_error)
 
     return OrderedDict(
         [(package, dependencies[package]) for package in sorted(dependencies.keys())]
