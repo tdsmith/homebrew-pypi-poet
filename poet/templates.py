@@ -45,8 +45,10 @@ RESOURCE_TEMPLATE = env.from_string("""\
   resource "{{ resource.name }}" do
   {% if 'pythonhosted' in resource.url %}
     url "{{ resource.url }}"
-  {% else %}
+  {% elif using %}
     url "{{ resource.url }}", using: {{ using }}
+  {% else %}
+    url "{{ resource.url }}"
   {% endif %}
     {{ resource.checksum_type }} "{{ resource.checksum }}"
   end

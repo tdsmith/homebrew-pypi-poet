@@ -349,14 +349,12 @@ def research_package(name: str, version=None) -> PackageMetadata:
     if code_artifact_repo is not None:
         logging.warning("Using AWS CodeArtifact repository {} to get package metadata for {}".format(code_artifact_repo, name))
         try:
-
             package_metadata = CodeArtifactMetadata(name=name, version=version)
             return package_metadata.asdict()
         except CodeArtifactMetadataException as metadata_exception:
             logging.warning("Something went wrong when getting metadata for {}: {}\nResorting to pypi for metadata.".format(name, metadata_exception))
             return get_package_metadata_from_pypi(name, version).asdict()
-    
-
+    return get_package_metadata_from_pypi(name, version).asdict()
 
 def make_graph(pkg):
     """Returns a dictionary of information about pkg & its recursive deps.
@@ -387,7 +385,7 @@ def make_graph(pkg):
             package_data = research_package(package, dependencies[package]["version"])
             dependencies[package].update(package_data)
     except TypeError as type_error:
-        logging.warning("Could not get metadata for %s: %s", package, type_error)
+        logging.warning(f"Could not get metadata for package: {package}.Dependencies: {dependencies} PackageData: {package_data}")
 
     return OrderedDict(
         [(package, dependencies[package]) for package in sorted(dependencies.keys())]
