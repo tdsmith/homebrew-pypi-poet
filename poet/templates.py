@@ -43,15 +43,11 @@ FORMULA_TEMPLATE = env.from_string(dedent("""\
 
 RESOURCE_TEMPLATE = env.from_string("""\
   resource "{{ resource.name }}" do
+  {% if 'pythonhosted' in resource.url %}
     url "{{ resource.url }}"
-    {{ resource.checksum_type }} "{{ resource.checksum }}"
-  end
-""")
-
-
-PRIVATE_RESOURCE_TEMPLATE = env.from_string("""\
-  resource "{{ resource.name }}" do
+  {% else %}
     url "{{ resource.url }}", using: {{ using }}
+  {% endif %}
     {{ resource.checksum_type }} "{{ resource.checksum }}"
   end
 """)

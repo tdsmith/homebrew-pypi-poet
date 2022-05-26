@@ -31,7 +31,7 @@ from packaging.version import Version, parse, InvalidVersion
 
 import pkg_resources
 
-from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE, PRIVATE_RESOURCE_TEMPLATE
+from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE
 from .version import __version__
 
 try:
@@ -422,15 +422,9 @@ def formula_for(package, also=None):
 
 def resources_for(packages, using=False):
     nodes = merge_graphs(make_graph(p) for p in packages)
-    return (
-        "\n\n".join(
-            [RESOURCE_TEMPLATE.render(resource=node) for node in nodes.values()]
+    return "\n\n".join(
+            [RESOURCE_TEMPLATE.render(resource=node, using=using) for node in nodes.values()]
         )
-        if not using
-        else "\n\n".join(
-            [PRIVATE_RESOURCE_TEMPLATE.render(resource=node, using=using) for node in nodes.values()]
-        )
-    )
 
 
 def merge_graphs(graphs):
