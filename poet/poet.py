@@ -60,6 +60,9 @@ class ConflictingDependencyWarning(UserWarning):
     pass
 
 
+class CodeArtifactMetadataException(UserWarning):
+    pass
+
 def recursive_dependencies(package):
     if not isinstance(package, pkg_resources.Requirement):
         raise TypeError("Expected a Requirement; got a %s" % type(package))
@@ -91,6 +94,12 @@ def recursive_dependencies(package):
 class PipSourceMetadataException(Exception):
     pass
 
+
+@dataclass
+class TarballMetadata:
+    name: str
+    checksum: str
+
 @dataclass
 class PackageMetadata:
     name: str
@@ -100,6 +109,7 @@ class PackageMetadata:
     checksum_type: str = field(default="sha256")
     version: Optional[Version] = None
     package_name: Optional[str] = None
+    tarball: Optional[str] = None
 
     def __post_init__(self):
         self.package_name = self.name.replace(".", "-")
@@ -114,6 +124,7 @@ class CodeArtifactMetadata(PackageMetadata):
     domain: Optional[str] = os.getenv("AWS_CODEARTIFACT_DOMAIN", None)
     owner: Optional[str] = os.getenv("AWS_CODEARTIFACT_DOMAIN_OWNER", None)
     client: Optional[boto3.session.Session.client] = None
+    tarball_asset_data: Optional[TarballMetadata] = None
 
     def __post_init__(self):
         # If the version is not specified, get the latest version
@@ -121,9 +132,11 @@ class CodeArtifactMetadata(PackageMetadata):
         self.client = boto3.client("codeartifact")
         if self.version is None:
             self.version = self.get_latest_version()
+        self.tarball_asset_data = self.get_tarball_asset_data()
+        self.tarball = self.tarball_asset_data.name
         self.homepage = self.get_metadata("homePage")
         self.base_url = self.get_base_url()
-        self.checksum = self.get_checksum()
+        self.checksum = self.tarball_asset_data.checksum
         self.url = self.get_download_url()
 
     def get_base_url(self) -> str:
@@ -158,15 +171,15 @@ class CodeArtifactMetadata(PackageMetadata):
         Returns:
             str: The download URL for the pip source distribution.
         """
-        base_url = urlparse(f"{self.get_base_url()}simple/{self.package_name}/{self.version}/{self.name}-{self.version}.tar.gz")
+        base_url = urlparse(f"{self.get_base_url()}simple/{self.package_name}/{self.version}/{self.tarball}")
         return urlunparse(base_url)
 
-    def get_checksum(self) -> str:
+    def get_tarball_asset_data(self) -> TarballMetadata:
         """
-        Get the checksum for the pip source distribution.
+        Get the tarball asset for the pip source distribution.
 
         Returns:
-            str: The checksum for the pip source distribution.
+            TarballMetadata: The metadata for the tarball containing the name of the file and the sha256 hash.
         """
         try:
             response = self.client.list_package_version_assets(
@@ -185,14 +198,17 @@ class CodeArtifactMetadata(PackageMetadata):
             raise e
         
         try:
-            tar_ball = [
+            tar_ball = next(iter([
                 asset for asset in response["assets"] if ".tar.gz" in asset["name"]
-            ][0]
-            return tar_ball["hashes"]["SHA-256"]
+            ]))
+        except StopIteration as stop_iteration:
+            raise CodeArtifactMetadataException("Could not find tarball asset") from stop_iteration
+        
+        try:
+            tarball_out = TarballMetadata(name=tar_ball["name"], checksum=tar_ball["hashes"]["SHA-256"])
+            return tarball_out
         except KeyError as key_error:
-            raise PipSourceMetadataException(
-                f"Could not find checksum for {self.name} version {self.version}"
-            ) from key_error
+            raise CodeArtifactMetadataException(f"An error ocurred when getting tarball data for {self.package_name}: {key_error}") from key_error
 
     def get_metadata(self, key: str) -> str:
         """Get a metadata value from the pip source distribution.
@@ -245,13 +261,67 @@ class CodeArtifactMetadata(PackageMetadata):
             if client_error.response["Error"]["Code"] == "PackageNotFound":
                 raise PackageNotFoundWarning(f"Package {self.name} not found")
             raise client_error
-        
+
         try:
             return response["versions"][0]["version"]
         except KeyError as key_error:
             logging.warning("Could not find latest version for {}. Error: {}".format(self.name, key_error))
             return None
 
+
+def get_package_metadata_from_pypi(name: str, version: str = None) -> PackageMetadata:
+    """Get the metadata for a package.
+
+    Args:
+        package_name (str): The name of the package.
+        version (str): The version of the package.
+
+    Returns:
+        PackageMetadata: The metadata for the package.
+    """
+    with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
+        reader = codecs.getreader("utf-8")
+        pkg_data = json.load(reader(f))
+    d = PackageMetadata(
+        name=pkg_data["info"]["name"],
+        version=version
+    )
+    artefact = None
+    if version:
+        for pypi_version in pkg_data["releases"]:
+            if pkg_resources.safe_version(pypi_version) == version:
+                for version_artefact in pkg_data["releases"][pypi_version]:
+                    if version_artefact["packagetype"] == "sdist":
+                        artefact = version_artefact
+                        break
+        if artefact is None:
+            warnings.warn(
+                "Could not find an exact version match for "
+                "{} version {}; using newest instead".format(name, version),
+                PackageVersionNotFoundWarning,
+            )
+
+    if artefact is None:  # no version given or exact match not found
+        for url in pkg_data["urls"]:
+            if url["packagetype"] == "sdist":
+                artefact = url
+                break
+
+    if artefact:
+        d.url = artefact["url"]
+        if "digests" in artefact and "sha256" in artefact["digests"]:
+            logging.debug("Using provided checksum for %s", name)
+            d.checksum = artefact["digests"]["sha256"]
+        else:
+            logging.debug("Fetching sdist to compute checksum for %s", name)
+            with closing(urlopen(artefact["url"])) as f:
+                d.checksum = sha256(f.read()).hexdigest()
+            logging.debug("Done fetching %s", name)
+    else:  # no sdist found
+        d.url = ""
+        d.checksum = ""
+        warnings.warn("No sdist found for %s" % name)
+    return d
     
 def research_package(name: str, version=None) -> PackageMetadata:
     """
@@ -278,53 +348,14 @@ def research_package(name: str, version=None) -> PackageMetadata:
 
     if code_artifact_repo is not None:
         logging.warning("Using AWS CodeArtifact repository {} to get package metadata for {}".format(code_artifact_repo, name))
-        package_metadata = CodeArtifactMetadata(name=name, version=version)
-        return package_metadata.asdict()
-    else:
-        with closing(urlopen("https://pypi.io/pypi/{}/json".format(name))) as f:
-            reader = codecs.getreader("utf-8")
-            pkg_data = json.load(reader(f))
+        try:
 
-        d = {}
-        d["name"] = pkg_data["info"]["name"]
-        d["homepage"] = pkg_data["info"].get("home_page", "")
-        artefact = None
-        if version:
-            for pypi_version in pkg_data["releases"]:
-                if pkg_resources.safe_version(pypi_version) == version:
-                    for version_artefact in pkg_data["releases"][pypi_version]:
-                        if version_artefact["packagetype"] == "sdist":
-                            artefact = version_artefact
-                            break
-            if artefact is None:
-                warnings.warn(
-                    "Could not find an exact version match for "
-                    "{} version {}; using newest instead".format(name, version),
-                    PackageVersionNotFoundWarning,
-                )
-
-        if artefact is None:  # no version given or exact match not found
-            for url in pkg_data["urls"]:
-                if url["packagetype"] == "sdist":
-                    artefact = url
-                    break
-
-        if artefact:
-            d["url"] = artefact["url"]
-            if "digests" in artefact and "sha256" in artefact["digests"]:
-                logging.debug("Using provided checksum for %s", name)
-                d["checksum"] = artefact["digests"]["sha256"]
-            else:
-                logging.debug("Fetching sdist to compute checksum for %s", name)
-                with closing(urlopen(artefact["url"])) as f:
-                    d["checksum"] = sha256(f.read()).hexdigest()
-                logging.debug("Done fetching %s", name)
-        else:  # no sdist found
-            d["url"] = ""
-            d["checksum"] = ""
-            warnings.warn("No sdist found for %s" % name)
-        d["checksum_type"] = "sha256"
-        return d
+            package_metadata = CodeArtifactMetadata(name=name, version=version)
+            return package_metadata.asdict()
+        except CodeArtifactMetadataException as metadata_exception:
+            logging.warning("Something went wrong when getting metadata for {}: {}\nResorting to pypi for metadata.".format(name, metadata_exception))
+            return get_package_metadata_from_pypi(name, version).asdict()
+    
 
 
 def make_graph(pkg):
@@ -350,8 +381,7 @@ def make_graph(pkg):
                 "resources for its dependencies.".format(package),
                 PackageNotInstalledWarning,
             )
-            dependencies[package]["version"] = None
-
+            dependencies[package]["version"] = None    
     for package in dependencies:
         package_data = research_package(package, dependencies[package]["version"])
         dependencies[package].update(package_data)
@@ -412,14 +442,7 @@ def merge_graphs(graphs):
             elif result[key] == g[key]:
                 pass
             else:
-<<<<<<< Updated upstream
-                warnings.warn(
-                    "Merge conflict: {l.name} {l.version} and "
-                    "{r.name} {r.version}; using the former.".format(
-                        l=result[key], r=g[key]
-                    ),
-                    ConflictingDependencyWarning,
-                )
+                logging.warning(f"Comparing {result[key]['name']}@{result[key]['version']} to {g[key]['name']}@{g[key]['version']}")
     return OrderedDict([k, result[k]] for k in sorted(result.keys()))
 
 
