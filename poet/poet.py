@@ -142,10 +142,10 @@ def _find_latest_version(distributions):
             valid_distributions.append(dist)
         except InvalidVersion:
             continue
-    
+
     if not valid_distributions:
         return None
-        
+
     return max(
         valid_distributions,
         key=(lambda dist: parse_version(dist.version)),
@@ -202,15 +202,22 @@ def make_graph(index_url, pkg):
     )
 
 
-def formula_for(index_url, package, also=None, template_path=None, include_python_minor_version=False):
+def formula_for(index_url, package, also=None, template_path=None, include_python_minor_version=False, extra_depends=None):
     also = also or []
+    extra_depends = extra_depends or []
 
     req = pkg_resources.Requirement.parse(package)
     package_name = req.project_name
 
     nodes = merge_graphs(make_graph(index_url, p) for p in [package] + also)
-    resources = [value for key, value in nodes.items()
-                 if key.lower() != package_name.lower()]
+    resources = []
+    for key, value in nodes.items():
+        if key.lower() != package_name.lower():
+            resources.append(value)
+            # Check for PyNaCl and automatically add libsodium dependency
+            if value.get('name', '').lower() == 'pynacl':
+                if 'libsodium' not in extra_depends:
+                    extra_depends.append('libsodium')
 
     if package_name in nodes:
         root = nodes[package_name]
@@ -229,6 +236,7 @@ def formula_for(index_url, package, also=None, template_path=None, include_pytho
         package=root,
         resources=resources,
         python=python,
+        extra_depends=extra_depends,
         ResourceTemplate=RESOURCE_TEMPLATE,
         env=os.environ,
     )
@@ -293,6 +301,9 @@ def main():
         '--include-python-minor-version',
         action="store_true",
         help='Include the minor version in the dependency on python')
+    parser.add_argument(
+        '--depends-on', '-d', action='append', default=[],
+        help='Additional Homebrew dependencies to add as depends_on lines. Can be repeated.')
     args = parser.parse_args()
 
     if (args.formula or args.resources) and args.package:
@@ -315,6 +326,7 @@ def main():
                 args.also,
                 args.formula_template,
                 args.include_python_minor_version,
+                args.depends_on,
             )
         )
     elif args.single:

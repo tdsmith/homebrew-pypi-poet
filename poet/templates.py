@@ -19,6 +19,9 @@ FORMULA_TEMPLATE = env.from_string(dedent("""\
       sha256 "{{ package.checksum }}"
 
       depends_on "{{ python }}"
+    {% for depend in extra_depends %}
+      depends_on "{{ depend }}"
+    {% endfor %}
 
     {% if resources %}
     {%   for resource in resources %}
