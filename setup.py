@@ -22,7 +22,13 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.6',
     ],
-    install_requires=['jinja2', 'setuptools'],
+    install_requires=[
+        'jinja2',
+        'setuptools; python_version < "3"',
+        'packaging<22; python_version >= "3" and python_version < "3.8"',
+        'packaging; python_version >= "3.8"',
+        'importlib-metadata<5; python_version >= "3" and python_version < "3.8"',
+    ],
     entry_points={'console_scripts': [
         'poet=poet:main',
         'poet_lint=poet.lint:main',

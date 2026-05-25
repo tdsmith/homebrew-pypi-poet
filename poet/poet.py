@@ -20,7 +20,17 @@ import os
 import sys
 import warnings
 
-import pkg_resources
+if sys.version_info.major == 2:
+    import pkg_resources
+    PackageNotFoundError = pkg_resources.DistributionNotFound
+else:
+    try:
+        from importlib import metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name, canonicalize_version
+    PackageNotFoundError = importlib_metadata.PackageNotFoundError
 
 from .templates import FORMULA_TEMPLATE, RESOURCE_TEMPLATE
 from .version import __version__
@@ -48,27 +58,105 @@ class ConflictingDependencyWarning(UserWarning):
     pass
 
 
+def _is_requirement(package):
+    if sys.version_info.major == 2:
+        return isinstance(package, pkg_resources.Requirement)
+    return isinstance(package, Requirement)
+
+
+def _parse_requirement(package):
+    if sys.version_info.major == 2:
+        return pkg_resources.Requirement.parse(package)
+    return Requirement(package)
+
+
+def _requirement_name(package):
+    if sys.version_info.major == 2:
+        return package.project_name
+    return package.name
+
+
+def _requirement_extras(package):
+    return tuple(package.extras)
+
+
+def _requirement_key(package):
+    if sys.version_info.major == 2:
+        return package
+    return str(package)
+
+
+def _normalize_name(name):
+    if sys.version_info.major == 2:
+        return name.lower()
+    return canonicalize_name(name)
+
+
+def _safe_version(version):
+    if sys.version_info.major == 2:
+        return pkg_resources.safe_version(version)
+    return canonicalize_version(version)
+
+
+def _marker_matches(req, extras):
+    if req.marker is None:
+        return True
+    if req.marker.evaluate({'extra': ''}):
+        return True
+    return any(req.marker.evaluate({'extra': extra}) for extra in extras)
+
+
+def _distribution_requires(package, extras):
+    if sys.version_info.major == 2:
+        return pkg_resources.get_distribution(package).requires(extras)
+
+    try:
+        distribution = importlib_metadata.distribution(_requirement_name(package))
+    except PackageNotFoundError:
+        raise
+
+    requirements = []
+    for requirement in distribution.requires or []:
+        req = _parse_requirement(requirement)
+        if _marker_matches(req, extras):
+            requirements.append(req)
+    return requirements
+
+
+def _installed_versions():
+    if sys.version_info.major == 2:
+        return {package.key: package.version for package in pkg_resources.working_set}
+
+    versions = {}
+    for distribution in importlib_metadata.distributions():
+        name = distribution.metadata.get('Name')
+        if name:
+            versions[_normalize_name(name)] = distribution.version
+    return versions
+
+
 def recursive_dependencies(package):
-    if not isinstance(package, pkg_resources.Requirement):
+    if not _is_requirement(package):
         raise TypeError("Expected a Requirement; got a %s" % type(package))
 
-    discovered = {package.project_name.lower()}
+    discovered = {_normalize_name(_requirement_name(package))}
     visited = set()
 
     def walk(package):
-        if not isinstance(package, pkg_resources.Requirement):
+        if not _is_requirement(package):
             raise TypeError("Expected a Requirement; got a %s" % type(package))
-        if package in visited:
+        package_key = _requirement_key(package)
+        if package_key in visited:
             return
-        visited.add(package)
-        extras = package.extras
-        if package == "requests":
+        visited.add(package_key)
+        extras = _requirement_extras(package)
+        if _normalize_name(_requirement_name(package)) == "requests":
             extras += ("security",)
         try:
-            reqs = pkg_resources.get_distribution(package).requires(extras)
-        except pkg_resources.DistributionNotFound:
+            reqs = _distribution_requires(package, extras)
+        except PackageNotFoundError:
             return
-        discovered.update(req.project_name.lower() for req in reqs)
+        discovered.update(_normalize_name(_requirement_name(req)) for req in reqs)
         for req in reqs:
             walk(req)
 
@@ -86,7 +174,7 @@ def research_package(name, version=None):
     artefact = None
     if version:
         for pypi_version in pkg_data['releases']:
-            if pkg_resources.safe_version(pypi_version) == version:
+            if _safe_version(pypi_version) == _safe_version(version):
                 for version_artefact in pkg_data['releases'][pypi_version]:
                     if version_artefact['packagetype'] == 'sdist':
                         artefact = version_artefact
@@ -129,11 +217,10 @@ def make_graph(pkg):
     (No, it's not really a graph.)
     """
     ignore = ['argparse', 'pip', 'setuptools', 'wsgiref']
-    pkg_deps = recursive_dependencies(pkg_resources.Requirement.parse(pkg))
+    pkg_deps = recursive_dependencies(_parse_requirement(pkg))
 
     dependencies = {key: {} for key in pkg_deps if key not in ignore}
-    installed_packages = pkg_resources.working_set
-    versions = {package.key: package.version for package in installed_packages}
+    versions = _installed_versions()
     for package in dependencies:
         try:
             dependencies[package]['version'] = versions[package]
@@ -155,17 +242,18 @@ def make_graph(pkg):
 def formula_for(package, also=None):
     also = also or []
 
-    req = pkg_resources.Requirement.parse(package)
-    package_name = req.project_name
+    req = _parse_requirement(package)
+    package_name = _requirement_name(req)
+    package_key = _normalize_name(package_name)
 
     nodes = merge_graphs(make_graph(p) for p in [package] + also)
     resources = [value for key, value in nodes.items()
-                 if key.lower() != package_name.lower()]
+                 if _normalize_name(key) != package_key]
 
     if package_name in nodes:
         root = nodes[package_name]
-    elif package_name.lower() in nodes:
-        root = nodes[package_name.lower()]
+    elif package_key in nodes:
+        root = nodes[package_key]
     else:
         raise Exception("Could not find package {} in nodes {}".format(package, nodes.keys()))
 
