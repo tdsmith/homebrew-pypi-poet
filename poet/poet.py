@@ -192,8 +192,8 @@ def merge_graphs(graphs):
                 pass
             else:
                 warnings.warn(
-                    "Merge conflict: {l.name} {l.version} and "
-                    "{r.name} {r.version}; using the former.".
+                    "Merge conflict: {l[name]} {l[version]} and "
+                    "{r[name]} {r[version]}; using the former.".
                     format(l=result[key], r=g[key]),
                     ConflictingDependencyWarning)
     return OrderedDict([k, result[k]] for k in sorted(result.keys()))
